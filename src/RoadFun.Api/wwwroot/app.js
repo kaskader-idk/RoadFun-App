@@ -45,10 +45,13 @@ function formatDuration(seconds) {
 function showAuth() { $("auth").hidden = false; $("auth").style.display = "grid"; }
 function hideAuth() { $("auth").hidden = true; $("auth").style.display = "none"; }
 function logout(message = true) {
+  if (typeof stopNavigation === "function") stopNavigation();
   state.token = ""; state.me = null; localStorage.removeItem("roadfun-token");
   stopLocation(); clearInterval(state.refreshHandle); state.refreshHandle = null;
   state.overlays?.clearLayers(); state.marker?.remove(); state.marker = null;
-  state.activeTrack = null; state.timer = null; showAuth();
+  state.activeTrack = null; state.timer = null;
+  state.route = null; state.routeLine?.remove(); state.routeLine=null;
+  $("routeSummary").hidden = true; showAuth();
   if (message) toast("Abgemeldet");
 }
 function initMap() {
@@ -149,6 +152,7 @@ async function updateLocation(update) {
   } else state.marker.setLatLng([pos.lat,pos.lon]);
   state.marker.setIcon(L.divIcon({ className:"", html:'<div class="map-user"></div>', iconSize:[22,22],iconAnchor:[11,11] }));
   timerUpdate(pos);
+  if (typeof navigationLocationUpdate === "function") navigationLocationUpdate(pos);
   if (state.me?.shareLocation && Date.now()-state.lastSend > 10000) {
     state.lastSend=Date.now();
     api("/location", json("POST",{ lat:pos.lat, lon:pos.lon, accuracy:pos.accuracy })).catch(()=>{});
@@ -194,6 +198,7 @@ async function routeGo() {
   try {
     const q=new URLSearchParams({fromLat:a.lat,fromLon:a.lon,toLat:b.lat,toLon:b.lon,mode:state.mode});
     const result=await api("/route?"+q);
+    if (typeof stopNavigation === "function") stopNavigation();
     state.route=result; state.route.geometry=result.geometry;
     if(state.routeLine) state.routeLine.remove();
     state.routeLine=L.polyline(result.geometry.map(p=>[p[1],p[0]]),{color:"#299bff",weight:6,opacity:.9}).addTo(state.map);
@@ -203,7 +208,9 @@ async function routeGo() {
     $("routeSummary").innerHTML='<b>↗ Route · '+esc(state.mode.toUpperCase())+'</b><div class="metrics"><span><strong>'+
       nice(result.distanceKm)+' km</strong><br>Entfernung</span><span><strong>'+Math.ceil(result.durationMin)+
       ' min</strong><br>Fahrtzeit</span><span><strong>'+arrival+'</strong><br>Ankunft</span></div>'+
-      '<span class="muted tiny">'+result.alternatives+' Alternative(n) · Kein Live-Verkehr</span>';
+      '<span class="muted tiny">'+result.alternatives+' Alternative(n) · Kein Live-Verkehr</span>'+
+      '<button id="startNavigation" class="primary wide nav-start">Navigation starten (Testversion)</button>';
+    attach("startNavigation",startNavigation);
     setTab("map"); toast("Route berechnet");
   } catch(e){toast(e.message,true)}
 }
