@@ -179,20 +179,7 @@ async function refreshMarkers() {
 function section(title, body) { return '<div class="item"><h3>'+esc(title)+'</h3>'+body+'</div>'; }
 function empty(msg) { return '<p class="help">'+esc(msg)+'</p>'; }
 function attach(id, fn) { const e=$(id); if(e) e.onclick=fn; }
-function renderRoute() {
-  $("panelContent").innerHTML =
-    '<p class="help">Karte mit Live-Position und alternativen Straßenrouten. Geschätzte ETA ohne Staus in Echtzeit.</p>'+
-    '<button class="select-point" id="routeStartBtn">Start: '+esc(state.routeStart ? coords(state.routeStart) : "Meine GPS-Position")+'</button>'+
-    '<button class="select-point" id="routeEndBtn">Ziel: '+esc(coords(state.routeEnd))+'</button>'+
-    '<label>Routenmodus<select id="routeMode"><option value="fast">Schnellste</option><option value="short">Kürzeste</option><option value="eco">Eco (Heuristik)</option><option value="fun">Fun (Kurven-Heuristik)</option></select></label>'+
-    '<div class="button-row"><button class="primary" id="routeGo">Route berechnen</button><button class="secondary" id="route3d">3D-Gelände</button></div>'+
-    '<p class="help">Fun/Eco nutzen vorhandene Routing-Alternativen. Bei nur einer Route sind alle Modi identisch.</p>';
-  $("routeMode").value = state.mode;
-  attach("routeStartBtn",()=>pick("Startpunkt wählen",p=>state.routeStart=p));
-  attach("routeEndBtn",()=>pick("Zielpunkt wählen",p=>state.routeEnd=p));
-  attach("routeGo",routeGo);
-  attach("route3d",show3D);
-}
+function renderRoute() { window.RoadFunRoutePlanner.render(); }
 async function routeGo() {
   const a=state.routeStart || state.pos,b=state.routeEnd;
   if (!a || !b) return toast("GPS oder Start und Ziel auswählen",true);
