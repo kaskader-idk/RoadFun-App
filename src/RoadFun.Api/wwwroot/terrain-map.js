@@ -119,14 +119,22 @@
       onProgress(i+1,tiles.length);
     }
     function sample(lon,lat) {
-      const px=tileXY(lon,lat,coverage.demZoom),x=Math.floor(px.x),y=Math.floor(px.y),
-        raster=elevation.get(`${coverage.demZoom}/${x}/${y}`);
+      const px=tileXY(lon,lat,coverage.demZoom),x=Math.floor(px.x),y=Math.floor(px.y);
+      let rx=x,ry=y,raster=elevation.get(`${coverage.demZoom}/${x}/${y}`);
       if (!raster) {
-        // Bounding edges can fall just outside a tile; clamp to nearest loaded border.
-        return NaN;
+        // Geometries include both sides of an XYZ tile; coordinate exactly on
+        // the eastern/southern border can address a non-fetched neighboring tile.
+        outer: for (const dx of [0,-1,1])for(const dy of [0,-1,1]){
+          const candidate=elevation.get(`${coverage.demZoom}/${x+dx}/${y+dy}`);
+          if(candidate && Math.abs(px.x-(x+dx))<=1.00001 &&
+            Math.abs(px.y-(y+dy))<=1.00001) {
+            rx=x+dx;ry=y+dy;raster=candidate;break outer;
+          }
+        }
       }
+      if(!raster)return NaN;
       return bilinear(raster.data,raster.width,raster.height,
-        (px.x-x)*(raster.width-1),(px.y-y)*(raster.height-1));
+        (px.x-rx)*(raster.width-1),(px.y-ry)*(raster.height-1));
     }
     return {sample,elevation,tiles};
   }
