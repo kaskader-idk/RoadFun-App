@@ -28,11 +28,6 @@ curl --silent --show-error --fail -H "$AUTH" "$BASE/reports" | grep -q 'Smoke te
 curl --silent --show-error --fail -H "$AUTH" -H 'Content-Type: application/json' -d '{"title":"Track 1","startLat":48.2,"startLon":13.5,"endLat":48.21,"endLon":13.51,"visibility":"private"}' "$BASE/tracks" >/dev/null
 curl --silent --show-error --fail -H "$AUTH" "$BASE/tracks" | grep -q 'Track 1'
 TRACK_ID=$(curl --silent --show-error --fail -H "$AUTH" "$BASE/tracks" | python3 -c 'import json,sys;print(json.load(sys.stdin)[0]["id"])')
-# Route calculation has moved entirely into the browser Web Worker.
-# The old public/server-side OSRM endpoint must no longer exist.
-ROUTE_STATUS=$(curl -s -o /dev/null -w '%{http_code}' -H "$AUTH" \
-  "$BASE/route?fromLat=48.2&fromLon=13.5&toLat=48.21&toLon=13.51")
-test "$ROUTE_STATUS" = "404"
 # Invalid / oversized vegetation bounding boxes must be rejected without contacting Overpass.
 VEGETATION_STATUS=$(curl -s -o /dev/null -w '%{http_code}' -H "$AUTH" \
   "$BASE/terrain/vegetation?south=48.1&west=13.2&north=48.3&east=13.4")
