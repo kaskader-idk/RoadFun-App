@@ -185,8 +185,8 @@ async function routeGo() {
   if (!a || !b) return toast("GPS oder Start und Ziel auswählen",true);
   state.mode=$("routeMode").value;
   try {
-    const q=new URLSearchParams({fromLat:a.lat,fromLon:a.lon,toLat:b.lat,toLon:b.lon,mode:state.mode});
-    const result=await api("/route?"+q);
+    // Never send start/destination to a routing service: A* runs on this device.
+    const result=await window.RoadFunOffline.route(a,b,state.mode);
     if (typeof stopNavigation === "function") stopNavigation();
     state.route=result; state.route.geometry=result.geometry;
     if(state.routeLine) state.routeLine.remove();
@@ -197,11 +197,15 @@ async function routeGo() {
     $("routeSummary").innerHTML='<b>↗ Route · '+esc(state.mode.toUpperCase())+'</b><div class="metrics"><span><strong>'+
       nice(result.distanceKm)+' km</strong><br>Entfernung</span><span><strong>'+Math.ceil(result.durationMin)+
       ' min</strong><br>Fahrtzeit</span><span><strong>'+arrival+'</strong><br>Ankunft</span></div>'+
-      '<span class="muted tiny">'+result.alternatives+' Alternative(n) · Kein Live-Verkehr · '+esc(result.provider||"Routing")+'</span>'+
+      '<span class="muted tiny">Lokal auf diesem Gerät · '+result.computeMilliseconds+' ms Suche · keine Live-Staus · nur geladene Region</span>'+
       '<button id="startNavigation" class="primary wide nav-start">Navigation starten (Testversion)</button>';
     attach("startNavigation",startNavigation);
     setTab("map"); toast("Route berechnet");
-  } catch(e){toast(e.message,true)}
+  } catch(e){
+    toast(e.message,true);
+    if(state.tab==="route" && document.getElementById("routeOfflineStatus"))
+      document.getElementById("routeOfflineStatus").textContent=e.message;
+  }
 }
 function renderReport() {
   $("panelContent").innerHTML='<p class="help">Melde Beobachtungen, nicht während du selbst fährst.</p>'+
