@@ -182,6 +182,13 @@
     }
     return treePositions;
   }
+  function featureBounds(region, maxSpan=.025) {
+    const centerLat=(region.north+region.south)/2,centerLon=(region.east+region.west)/2;
+    const latSpan=Math.min(maxSpan,region.north-region.south);
+    const lonSpan=Math.min(maxSpan/Math.max(.5,Math.cos(centerLat*rad)),region.east-region.west);
+    return {south:centerLat-latSpan/2,north:centerLat+latSpan/2,
+      west:centerLon-lonSpan/2,east:centerLon+lonSpan/2};
+  }
   function buildingsFromOverpass(elements, region, limit=180) {
     const result=[];
     for (const item of Array.isArray(elements)?elements:[]) {
@@ -205,7 +212,7 @@
     return result;
   }
   const api={tileXY,tileLatLon,tileBound,tileList,coverage,bbox,projectFactory,heightTerrarium,bilinear,
-    terrainUrl,satelliteUrl,loadImage,demSampler,pointInside,vegetationFromOverpass,buildingsFromOverpass};
+    terrainUrl,satelliteUrl,loadImage,demSampler,pointInside,vegetationFromOverpass,buildingsFromOverpass,featureBounds};
   if(typeof module!=="undefined"&&module.exports)module.exports=api;
   global.RoadFunTerrain=api;
 })(typeof window!=="undefined"?window:globalThis);
