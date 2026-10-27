@@ -45,3 +45,21 @@
  .terrain-attribution{margin:10px 12px}
  .terrain-height-control input{width:95px}
 }
+
+/* Floating address search and map pin selection. Keep the rest of the map interactive. */
+.route-planner{position:absolute;top:12px;left:14px;z-index:600;width:min(370px,calc(100% - 100px));max-height:calc(100% - 28px);overflow-y:auto;background:#162640f5;color:var(--ink);border:1px solid #476386;border-radius:16px;box-shadow:0 14px 44px #0009;backdrop-filter:blur(16px);padding:15px}
+.route-planner-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-bottom:9px;border-bottom:1px solid var(--border)}
+.route-planner-head strong{font-size:1.02rem}
+.route-planner-tip{font-size:.72rem;line-height:1.45;color:var(--muted);margin:9px 0}
+.route-address-wrap{position:relative;margin:11px 0}
+.route-address-wrap label{display:block;font-weight:650;font-size:.78rem;margin:4px 0 6px}
+.route-address-row{display:flex;align-items:stretch;gap:6px}
+.route-address-row input{min-width:0;flex:1;height:42px;background:#0e1c32;border:1px solid #526a89;border-radius:9px;color:#eff7ff;padding:9px 10px;font-size:.87rem}
+.route-pin{width:42px;flex:0 0 42px;background:#264b75;color:#d8efff;border:1px solid #4378b0;border-radius:9px;font-size:1.3rem;cursor:pointer}
+.route-suggestions{position:relative;z-index:3;background:#0e213c;border:1px solid #416086;border-radius:10px;max-height:220px;overflow-y:auto;margin-top:4px;padding:4px;font-size:.77rem}
+.route-result{display:block;text-align:left;width:100%;padding:10px 8px;line-height:1.3;background:transparent;border:0;border-radius:6px;color:#ebf4ff;cursor:pointer}
+.route-result:hover,.route-result:focus-visible{background:#294d76}
+.route-planner select{display:block;width:100%;margin-top:6px;background:#0e1c32;border:1px solid #526a89;color:#eff7ff;border-radius:8px;padding:9px}
+.route-actions{display:flex;gap:7px;margin:12px 0}
+.route-actions button{flex:1;min-width:0;padding:10px 8px;font-size:.82rem}
+@media(max-width:800px){.route-planner{top:8px;left:7px;width:calc(100% - 64px);max-height:calc(100% - 12px);padding:11px}.route-planner-tip{font-size:.69rem}}
