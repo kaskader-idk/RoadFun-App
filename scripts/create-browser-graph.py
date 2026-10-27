@@ -92,7 +92,7 @@ class Reader(osmium.SimpleHandler):
             self.nodes[start] = startpos
             self.nodes[end] = endpos
             dist = meters(startpos, endpos)
-            seconds = max(1, round(dist / (speed / 3.6)))
+            seconds = max(1, math.ceil(dist / (speed / 3.6)))
             if forward:
                 self.edges.append((start, end, dist, seconds, category))
             if reverse:
