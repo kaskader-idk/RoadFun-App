@@ -8,3 +8,6 @@ data/
 *.db-wal
 node_modules/
 .DS_Store
+
+# Large local road graph; never build into API image
+routing-data/

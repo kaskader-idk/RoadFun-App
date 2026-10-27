@@ -10,11 +10,27 @@ services:
       ROADFUN_INVITE_CODE: ${ROADFUN_INVITE_CODE:?Set a private invitation code in .env}
       ROADFUN_ROUTING_URL: ${ROADFUN_ROUTING_URL:-https://router.project-osrm.org}
       ROADFUN_ROUTING_FALLBACK_URL: ${ROADFUN_ROUTING_FALLBACK_URL:-https://valhalla1.openstreetmap.de}
+      ROADFUN_GEOCODER_URL: ${ROADFUN_GEOCODER_URL:-https://photon.komoot.io}
       ROADFUN_ELEVATION_URL: ${ROADFUN_ELEVATION_URL:-https://api.opentopodata.org/v1/srtm90m}
     ports:
       - "8090:8080"
     volumes:
       - roadfun_data:/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend:v5.27.1
+    container_name: roadfun-osrm
+    profiles: ["local-routing"]
+    restart: unless-stopped
+    command: ["osrm-routed", "--algorithm", "ch", "--port", "5000", "/data/austria-latest.osrm"]
+    volumes:
+      - ./routing-data:/data:ro
+    expose:
+      - "5000"
     security_opt:
       - no-new-privileges:true
     cap_drop:

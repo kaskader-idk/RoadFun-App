@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="/icon.svg">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous">
-<link rel="stylesheet" href="/style.css?v=5">
+<link rel="stylesheet" href="/style.css?v=7">
 </head><body>
 <header><div class="brand"><span class="logo">R<span>F</span></span><div>Road<span class="accent">Fun</span><small>DRIVE · DISCOVER · CONNECT</small></div></div>
 <div class="header-actions"><span id="gpsStatus" class="pill">GPS aus</span><button id="openProfile" class="avatar-button" title="Profil">?</button></div></header>
@@ -20,6 +20,10 @@
  <main id="mapArea"><div id="map"></div><div class="map-tools">
   <button id="centerGps" title="Zu meiner Position">◎</button><button id="refreshMap" title="Aktualisieren">↻</button>
  </div><div id="mapHint" class="map-hint" hidden></div>
+ <div id="routePlanner" class="route-planner" hidden>
+   <div class="route-planner-head"><strong>↗ Route planen</strong><button id="closeRoutePlanner" class="icon-button" aria-label="Routenplanung schließen" type="button">✕</button></div>
+   <div id="routePlannerBody"></div>
+ </div>
  <div id="routeSummary" class="floating-card" hidden></div>
  <div id="navCard" class="nav-card" role="status" aria-live="polite" hidden>
   <div class="nav-eyebrow">⌖ GPS-NAVIGATION · TESTVERSION</div>
@@ -49,6 +53,7 @@
  <label><input type="checkbox" id="layerTerrain" checked> Gelände</label>
  <label><input type="checkbox" id="layerSatellite" checked> Satellitenbilder</label>
  <label><input type="checkbox" id="layerTrees" checked> Bäume</label>
+ <label><input type="checkbox" id="layerBuildings" checked> Häuser</label>
  <label><input type="checkbox" id="layerRoad" checked> Straße</label>
  <label><input type="checkbox" id="showSurroundings"> Raster / Norden</label>
 </div>
@@ -60,14 +65,16 @@
 <p id="terrainStatus" class="muted tiny terrain-meta" role="status"></p>
 <p id="terrainStats" class="muted tiny terrain-meta"></p>
 <p id="treeCount" class="muted tiny terrain-meta"></p>
+<p id="buildingCount" class="muted tiny terrain-meta"></p>
 <p class="muted tiny terrain-disclaimer">3D-Geländemodell aus Höhenrastern. Satellitenbild ist eine auf das Relief projizierte Aufnahme. Die Bäume sind nur dort einzeln standortgetreu, wo sie in OpenStreetMap erfasst wurden; Bäume innerhalb kartierter Waldflächen sind modellhaft verteilt. Keine vollständige Baum- oder Gebäuderekonstruktion.</p>
 <p class="terrain-attribution">Höhen: <a href="https://registry.opendata.aws/terrain-tiles/" target="_blank" rel="noopener">Mapzen Terrain Tiles / AWS Open Data</a> · Satellit: <a href="https://www.esri.com/en-us/arcgis/products/arcgis-online/resources" target="_blank" rel="noopener">Esri World Imagery & Bildpartner</a> · Vegetation: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap-Mitwirkende</a></p></div></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script defer src="/roadfun-geometry.js?v=4"></script>
-<script defer src="/terrain-map.js?v=5"></script>
-<script defer src="/terrain3d.js?v=5"></script>
-<script defer src="/app.js?v=5"></script>
+<script defer src="/terrain-map.js?v=7"></script>
+<script defer src="/terrain3d.js?v=7"></script>
+<script defer src="/route-search.js?v=7"></script>
+<script defer src="/app.js?v=7"></script>
 <script defer src="/navigation.js?v=2"></script>
 </body></html>

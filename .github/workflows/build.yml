@@ -18,6 +18,7 @@ jobs:
           node --check src/RoadFun.Api/wwwroot/roadfun-geometry.js
           node --check src/RoadFun.Api/wwwroot/terrain3d.js
           node --check src/RoadFun.Api/wwwroot/terrain-map.js
+          node --check src/RoadFun.Api/wwwroot/route-search.js
           node --check src/RoadFun.Api/wwwroot/sw.js
           node --test tests/geometry3d.test.cjs tests/terrain-map.test.cjs
           python3 -m py_compile scripts/mock-routing.py

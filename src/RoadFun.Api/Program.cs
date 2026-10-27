@@ -27,6 +27,7 @@ builder.Services.AddRateLimiter(o =>
         }));
 });
 builder.Services.AddHttpClient("routing", c => c.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddHttpClient("overpass", c => c.Timeout = TimeSpan.FromSeconds(30));
 var dataDir = Environment.GetEnvironmentVariable("ROADFUN_DATA_DIR") ?? Path.Combine(builder.Environment.ContentRootPath, "data");
 Directory.CreateDirectory(dataDir);
 var avatarDir = Path.Combine(dataDir, "avatars");
@@ -337,6 +338,22 @@ api.MapPost("/runs", (HttpContext ctx, NewRun req) =>
     return Results.Ok(new { success = true, verified = false });
 });
 
+api.MapGet("/geocode", async (string q, double? lat, double? lon,
+    IHttpClientFactory factory, CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var json=await Geocoding.Search(q,lat,lon,factory,cancellationToken);
+        return Results.Content(json,"application/json; charset=utf-8");
+    }
+    catch(ArgumentException ex) { return Bad(ex.Message); }
+    catch(Exception ex) when (ex is HttpRequestException or TimeoutException or
+        TaskCanceledException or InvalidOperationException or JsonException)
+    {
+        app.Logger.LogWarning(ex,"Photon geocoder unavailable");
+        return Bad("Adresssuche derzeit nicht verfügbar. Koordinaten oder Kartenauswahl funktionieren weiterhin.",503);
+    }
+});
 api.MapGet("/terrain/vegetation", async (double south, double west, double north, double east,
     IHttpClientFactory factory, CancellationToken cancellationToken) =>
 {

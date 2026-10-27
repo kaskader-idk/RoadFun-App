@@ -61,7 +61,7 @@
       new THREE.MeshBasicMaterial({color}));
     m.position.copy(position);m.position.y+=radius*0.9;group.add(m);
   }
-  function groundTile(THREE, tile, project, heightY, elev, segments=30) {
+  function groundTile(THREE, tile, project, heightY, elev, segments=56) {
     const positions=[],normals=[],uvs=[],indices=[],b=tile.bounds;
     for(let v=0;v<=segments;v++)for(let u=0;u<=segments;u++){
       const fracU=u/segments,fracV=v/segments;
@@ -81,7 +81,7 @@
     geometry.setAttribute("position",new THREE.Float32BufferAttribute(positions,3));
     geometry.setAttribute("uv",new THREE.Float32BufferAttribute(uvs,2));
     geometry.setIndex(indices);geometry.computeVertexNormals();
-    const mat=new THREE.MeshBasicMaterial({color:0x3b6553,side:THREE.DoubleSide});
+    const mat=new THREE.MeshLambertMaterial({color:0x3b6553,side:THREE.DoubleSide,flatShading:false});
     const mesh=new THREE.Mesh(geometry,mat);mesh.userData.tile=tile;
     return mesh;
   }
@@ -90,7 +90,7 @@
     const group=new THREE.Group();
     const valid=[];
     const sampleRoad=road.filter((_,i)=>i%Math.max(1,Math.floor(road.length/220))===0);
-    const nearRoad=(x,z)=>sampleRoad.some(v=>Math.hypot(v.x-x,v.z-z)<roadWidth*2.1);
+    const nearRoad=(x,z)=>sampleRoad.some(v=>Math.hypot(v.x-x,v.z-z)<Math.max(roadWidth*.85,.16));
     for(const p of positions) {
       const m=proj.project(p.lon,p.lat),h=elev.sample(p.lon,p.lat);
       if(!Number.isFinite(h)||nearRoad(m.x,m.z))continue;
@@ -103,7 +103,7 @@
     const dummy=new THREE.Object3D(),color=new THREE.Color();
     valid.forEach((p,i)=>{
       const treeMetres=(p.source==="surveyed"?12:9)+(i%7)*.8;
-      const tall=Math.max(.7,treeMetres*proj.unitsPerMetre);
+      const tall=Math.max(1.05,treeMetres*proj.unitsPerMetre);
       const base=heightY.at(p.h);
       dummy.position.set(p.x,base+tall*.24,p.z);
       dummy.scale.set(tall*.12,tall*.48,tall*.12);dummy.updateMatrix();
@@ -119,7 +119,34 @@
     if(canopy.instanceColor)canopy.instanceColor.needsUpdate=true;
     canopy.frustumCulled=false;trunk.frustumCulled=false;
     group.add(trunk,canopy);
-    return {group,count:valid.length,exact:positions.filter(x=>x.source==="surveyed").length};
+    return {group,count:valid.length,exact:valid.filter(x=>x.source==="surveyed").length};
+  }
+
+  function createBuildings(THREE,buildings,proj,elev,heightY){
+    const group=new THREE.Group();
+    let count=0;
+    for(const item of buildings){
+      const coordinates=item.polygon.map(p=>proj.project(p.lon,p.lat));
+      if(coordinates.length<3)continue;
+      const shape=new THREE.Shape();
+      shape.moveTo(coordinates[0].x,-coordinates[0].z);
+      for(let i=1;i<coordinates.length;i++)
+        shape.lineTo(coordinates[i].x,-coordinates[i].z);
+      shape.closePath();
+      const h=elev.sample(item.center.lon,item.center.lat);
+      if(!Number.isFinite(h))continue;
+      const depth=Math.max(.5,item.heightMeters*proj.unitsPerMetre);
+      // Shape XY maps onto X/-Z; rotate extrusion's +Z into world +Y.
+      const geom=new THREE.ExtrudeGeometry(shape,{depth,steps:1,bevelEnabled:false,curveSegments:1});
+      geom.rotateX(-Math.PI/2);
+      const mat=new THREE.MeshLambertMaterial({color:
+        item.kind==="industrial"?0x8f9da7:item.kind==="commercial"?0xb7aca0:0xd7c8ad,
+        side:THREE.DoubleSide});
+      const building=new THREE.Mesh(geom,mat);
+      building.position.y=heightY.at(h);
+      group.add(building);count++;
+    }
+    return {group,count};
   }
 
   async function open(rawGeometry, api, toast) {
@@ -169,9 +196,9 @@
       const controls=new THREE.OrbitControls(camera,renderer.domElement);
       controls.enableDamping=true;
       controls.maxPolarAngle=Math.PI*.86;
-      const terrainGroup=new THREE.Group(),roadGroup=new THREE.Group(),treeGroup=new THREE.Group();
+      const terrainGroup=new THREE.Group(),roadGroup=new THREE.Group(),treeGroup=new THREE.Group(),buildingGroup=new THREE.Group();
       const scaled=new THREE.Group();
-      scaled.add(terrainGroup,roadGroup,treeGroup);scene.add(scaled);
+      scaled.add(terrainGroup,roadGroup,treeGroup,buildingGroup);scene.add(scaled);
 
       const route=RoadFunGeometry.coordinates(rawGeometry);
       const base=elev ? Math.min(...RoadFunGeometry.elevationLocations(route,30).map(p=>elev.sample(p[0],p[1])).filter(Number.isFinite)) :
@@ -213,7 +240,7 @@
       const tileMeshes=[];
       if(elev){
         for(const tile of cov.imagery) {
-          const mesh=groundTile(THREE,tile,proj,heightY,elev,cov.zoom>=13?32:24);
+          const mesh=groundTile(THREE,tile,proj,heightY,elev,cov.zoom>=13?60:44);
           terrainGroup.add(mesh);tileMeshes.push(mesh);
         }
       } else {
@@ -247,15 +274,17 @@
       const terrainSwitch=$("layerTerrain"),satSwitch=$("layerSatellite"),
         roadSwitch=$("layerRoad"),treeSwitch=$("layerTrees"),
         gridSwitch=$("showSurroundings"),relief=$("terrainRelief");
-      const treeLabel=$("treeCount");
+      const treeLabel=$("treeCount"),buildingLabel=$("buildingCount");
       terrainSwitch.checked=true;satSwitch.checked=!!elev;roadSwitch.checked=true;
-      treeSwitch.checked=!!elev;gridSwitch.checked=false;relief.value="1.5";
+      treeSwitch.checked=!!elev;buildingSwitch.checked=!!elev;gridSwitch.checked=false;relief.value="1.5";
       treeLabel.textContent=elev?"Baumdaten werden geladen …":"Ohne DEM keine Baummodelle";
-      satSwitch.disabled=!elev;treeSwitch.disabled=!elev;
+      buildingLabel.textContent=elev?"Gebäudedaten werden geladen …":"Ohne DEM keine Gebäudemodelle";
+      satSwitch.disabled=!elev;treeSwitch.disabled=!elev;buildingSwitch.disabled=!elev;
       function updateLayers(){
         terrainGroup.visible=terrainSwitch.checked;
         roadGroup.visible=roadSwitch.checked;
         treeGroup.visible=treeSwitch.checked;
+        buildingGroup.visible=buildingSwitch.checked;
         grid.visible=north.visible=gridSwitch.checked;
         scaled.scale.y=Number(relief.value)/1.5;
         $("terrainReliefLabel").textContent=Number(relief.value).toFixed(1)+"×";
@@ -265,7 +294,7 @@
           mesh.material.needsUpdate=true;
         }
       }
-      for(const control of [terrainSwitch,satSwitch,roadSwitch,treeSwitch,gridSwitch,relief])
+      for(const control of [terrainSwitch,satSwitch,roadSwitch,treeSwitch,buildingSwitch,gridSwitch,relief])
         control.oninput=updateLayers;
       updateLayers();
       $("reset3dView").onclick=resetCamera;
@@ -309,24 +338,31 @@
           extraTextures.push(tex);
         }
 
-        // Overpass request only for reasonably small geographical regions.
-        const b=cov.bbox;
+        // Query only a bounded corridor near the middle of long routes.
+        // Public Overpass may fail: the scene and all other layers remain usable.
+        const b=T().featureBounds(cov.bbox);
         if(b.north-b.south<=.12 && b.east-b.west<=.12) {
           const query=new URLSearchParams({south:b.south,west:b.west,north:b.north,east:b.east});
           api("/terrain/vegetation?"+query,{signal:abort.signal}).then(payload=>{
             if(active!==view)return;
             const trees=T().vegetationFromOverpass(payload.elements,b,500);
             const visual=createForest(THREE,trees,proj,elev,heightY,curvePoints,roadWidth);
-            treeGroup.add(visual.group);updateLayers();
-            treeLabel.textContent=visual.count+" Baum-Modelle (davon "+
-              Math.min(visual.exact,visual.count)+" aus einzeln kartierten Standorten)";
+            treeGroup.add(visual.group);
+            const footprints=T().buildingsFromOverpass(payload.elements,b,180);
+            const buildings=createBuildings(THREE,footprints,proj,elev,heightY);
+            buildingGroup.add(buildings.group);
+            updateLayers();
+            treeLabel.textContent=visual.count+" Bäume ("+visual.exact+" einzeln kartiert, übrige aus Waldflächen)";
+            buildingLabel.textContent=buildings.count+" Gebäude aus OSM-Grundrissen (vereinfachte Baukörper)";
           }).catch(err=>{
             if(active!==view)return;
-            treeLabel.textContent="OSM-Baumdaten nicht verfügbar";
+            treeLabel.textContent="OSM-Baumdaten derzeit nicht verfügbar";
+            buildingLabel.textContent="OSM-Gebäudedaten derzeit nicht verfügbar";
             console.warn("RoadFun vegetation:",err.message);
           });
         }else{
-          treeLabel.textContent="Baum-Modelle für lange Routen deaktiviert (Ausschnitt zu groß)";
+          treeLabel.textContent="OSM-Ausschnitt zu groß";
+          buildingLabel.textContent="OSM-Ausschnitt zu groß";
         }
       }
     }catch(error){

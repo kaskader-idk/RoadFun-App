@@ -58,3 +58,27 @@ test("OSM single tree locations are exact; forest trees are labelled approximate
   assert.ok(trees.some(p=>p.source==="approximate"));
   assert.ok(trees.every(p=>p.lon>=region.west&&p.lon<=region.east));
 });
+
+test("OSM building footprints preserve their mapped geometry and approximate missing heights",()=>{
+ const b={south:48.19,north:48.21,west:13.49,east:13.51};
+ const elements=[
+  {type:"way",id:100,tags:{building:"house","building:levels":"2"},geometry:[
+   {lon:13.5,lat:48.2},{lon:13.5002,lat:48.2},{lon:13.5002,lat:48.2002},
+   {lon:13.5,lat:48.2002},{lon:13.5,lat:48.2}]},
+  {type:"way",id:101,tags:{building:"industrial",height:"12 m"},geometry:[
+   {lon:13.502,lat:48.202},{lon:13.503,lat:48.202},{lon:13.503,lat:48.203},
+   {lon:13.502,lat:48.203},{lon:13.502,lat:48.202}]}
+ ];
+ const houses=t.buildingsFromOverpass(elements,b,180);
+ assert.equal(houses.length,2);
+ assert.equal(houses[0].heightMeters,6);
+ assert.equal(houses[1].heightMeters,12);
+ assert.equal(houses[0].polygon.length,4);
+});
+test("Overpass query envelope is limited even for long route extents",()=>{
+ const b={south:47.5,north:48.9,west:12,east:14.5};
+ const clipped=t.featureBounds(b);
+ assert.ok(clipped.north-clipped.south<=.025001);
+ assert.ok(clipped.east-clipped.west<.045);
+ assert.ok(clipped.west>=b.west && clipped.east<=b.east);
+});
