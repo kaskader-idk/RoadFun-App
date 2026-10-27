@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 BBOX="${ROADFUN_BBOX:-13.2,48.0,13.85,48.5}" # wider Ried im Innkreis area
 SOURCE="${ROADFUN_OSM_PBF:-$(pwd)/routing-data/austria-latest.osm.pbf}"
 REGION="$(pwd)/routing-data/region.osm.pbf"
-OUTPUT="$(pwd)/src/RoadFun.Api/wwwroot/routing-data/region.json"
+OUTPUT="$(pwd)/browser-map-data/region.json"
 mkdir -p routing-data "$(dirname "$OUTPUT")"
 if ! command -v osmium >/dev/null; then
   echo "Missing osmium CLI. On Debian: apt update && apt install -y osmium-tool python3-venv curl"
@@ -29,7 +29,7 @@ rm -f "$REGION"
 osmium extract --strategy=complete_ways -b "$BBOX" "$SOURCE" -o "$REGION"
 .venv-map/bin/python scripts/create-browser-graph.py "$REGION" "$OUTPUT"
 echo
-echo "IMPORTANT: Browser map generated. Rebuild RoadFun Docker image to deliver it:"
-echo "  docker compose up -d --build roadfun"
+echo "IMPORTANT: Browser map generated. Docker bind-mounts this directory into the API:"
+echo "  docker compose up -d roadfun"
 echo "The app will download the graph; route search then runs 100% on each user's device."
 echo "To cover more roads, rebuild using a wider ROADFUN_BBOX (increases file size and memory)."
