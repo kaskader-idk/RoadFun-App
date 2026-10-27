@@ -27,6 +27,20 @@ curl --silent --show-error --fail -H "$AUTH" -H 'Content-Type: application/json'
 curl --silent --show-error --fail -H "$AUTH" "$BASE/reports" | grep -q 'Smoke test'
 curl --silent --show-error --fail -H "$AUTH" -H 'Content-Type: application/json' -d '{"title":"Track 1","startLat":48.2,"startLon":13.5,"endLat":48.21,"endLon":13.51,"visibility":"private"}' "$BASE/tracks" >/dev/null
 curl --silent --show-error --fail -H "$AUTH" "$BASE/tracks" | grep -q 'Track 1'
+# Exercise invitations, friend approvals, chat, meet creation and admin login.
+CODE2=$(curl --silent --show-error --fail -H 'Content-Type: application/json' -d '{"username":"friend","password":"a-very-long-test-password","inviteCode":"roadfun-ci-test-invite-secret"}' "$BASE/auth/register")
+TOKEN2=$(printf '%s' "$CODE2" | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')
+AUTH2="Authorization: Bearer $TOKEN2"
+FRIEND_CODE=$(curl --silent --show-error --fail -H "$AUTH2" "$BASE/me" | python3 -c 'import json,sys;print(json.load(sys.stdin)["code"])')
+curl --silent --show-error --fail -H "$AUTH" -H 'Content-Type: application/json' -d "{\"code\":\"$FRIEND_CODE\"}" "$BASE/friends/request" >/dev/null
+REQUEST_ID=$(curl --silent --show-error --fail -H "$AUTH2" "$BASE/friends" | python3 -c 'import json,sys;print(json.load(sys.stdin)[0]["requestId"])')
+curl --silent --show-error --fail -H "$AUTH2" -X POST "$BASE/friends/$REQUEST_ID/accept" >/dev/null
+curl --silent --show-error --fail -H "$AUTH" -H 'Content-Type: application/json' -d '{"body":"Hello from smoke test"}' "$BASE/messages/$FRIEND_CODE" >/dev/null
+USER_CODE=$(curl --silent --show-error --fail -H "$AUTH" "$BASE/me" | python3 -c 'import json,sys;print(json.load(sys.stdin)["code"])')
+curl --silent --show-error --fail -H "$AUTH2" "$BASE/messages/$USER_CODE" | grep -q 'Hello from smoke test'
+curl --silent --show-error --fail -H "$AUTH" -H 'Content-Type: application/json' -d '{"title":"Smoke Meet","lat":48.2,"lon":13.5,"startsAt":"2030-01-01T15:00:00Z","description":"Test"}' "$BASE/meets" >/dev/null
+# Admin name/password are configurable rather than using the insecure PLANS.md default.
+curl --silent --show-error --fail -H 'Content-Type: application/json' -d '{"username":"Admin","password":"roadfun-test-admin-password-is-long"}' "$BASE/auth/login" | grep -q 'token'
 STATUS=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/me")
 test "$STATUS" = "401"
 echo "RoadFun smoke test PASSED"
