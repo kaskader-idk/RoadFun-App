@@ -11,3 +11,7 @@ node_modules/
 
 # Large local road graph; never build into API image
 routing-data/
+
+# Generated offline map and local Python virtual environment
+browser-map-data/
+.venv-map/
