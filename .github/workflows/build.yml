@@ -23,7 +23,7 @@ jobs:
           node --check src/RoadFun.Api/wwwroot/local-router-client.js
           node --check src/RoadFun.Api/wwwroot/local-router-worker.js
           node --check src/RoadFun.Api/wwwroot/sw.js
-          node --test tests/geometry3d.test.cjs tests/terrain-map.test.cjs tests/local-routing.test.cjs
+          node --test tests/geometry3d.test.cjs tests/terrain-map.test.cjs tests/local-routing.test.cjs tests/3d-assets.test.cjs
           python3 -m py_compile scripts/create-browser-graph.py
       - name: Restore and build
         run: dotnet build src/RoadFun.Api/RoadFun.Api.csproj -c Release
