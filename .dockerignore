@@ -15,3 +15,7 @@ node_modules
 
 # Large local road graph; never build into API image
 routing-data/
+
+# Browser graph is bind-mounted separately, not embedded in Docker images
+browser-map-data/
+.venv-map/

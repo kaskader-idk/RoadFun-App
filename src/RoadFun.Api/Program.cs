@@ -370,63 +370,6 @@ api.MapGet("/terrain/vegetation", async (double south, double west, double north
         return Bad("Baumdaten momentan nicht verfügbar; Gelände und Satellit funktionieren weiterhin.", 503);
     }
 });
-api.MapGet("/route", async (double fromLat, double fromLon, double toLat, double toLon, string? mode,
-    IHttpClientFactory factory, CancellationToken cancellation) =>
-{
-    if (!ValidPoint(fromLat, fromLon) || !ValidPoint(toLat, toLon)) return Bad("Ungültige Koordinaten");
-    if (mode is not (null or "fast" or "short" or "eco" or "fun")) return Bad("Ungültiger Routenmodus");
-    var fetched = await RoutingFallback.Fetch(factory.CreateClient("routing"),
-        fromLat, fromLon, toLat, toLon, app.Logger, cancellation);
-    if (fetched.Json is null)
-    {
-        if (fetched.NoRoute) return Bad("Keine befahrbare Straßenroute gefunden (Start/Ziel prüfen)", 404);
-        return Bad("Routenberechnung gerade nicht möglich. " + fetched.Reason +
-            ". Prüfe die Internetverbindung des RoadFun-Containers und die Routing-Server-Einstellungen.", 503);
-    }
-    using var json = fetched.Json;
-    try
-    {
-        if (!json.RootElement.TryGetProperty("routes", out var routes) || routes.GetArrayLength() == 0) return Bad("Keine Straßenroute gefunden", 404);
-        var list = routes.EnumerateArray().Select(x =>
-        {
-            var coords = x.GetProperty("geometry").GetProperty("coordinates").EnumerateArray()
-                .Select(c => new[] { c[0].GetDouble(), c[1].GetDouble() }).ToArray();
-            var steps = x.GetProperty("legs").EnumerateArray()
-                .SelectMany(leg => leg.GetProperty("steps").EnumerateArray())
-                .Select(step =>
-                {
-                    var maneuver = step.GetProperty("maneuver");
-                    var location = maneuver.GetProperty("location");
-                    var kind = maneuver.GetProperty("type").GetString() ?? "continue";
-                    var modifier = maneuver.TryGetProperty("modifier", out var m) ? m.GetString() : null;
-                    var road = step.TryGetProperty("name", out var n) ? n.GetString() : null;
-                    var exit = maneuver.TryGetProperty("exit", out var e) ? e.GetInt32() : (int?)null;
-                    return new {
-                        lat = location[1].GetDouble(), lon = location[0].GetDouble(),
-                        type = kind, modifier, road, exit,
-                        distanceMeters = step.GetProperty("distance").GetDouble()
-                    };
-                }).ToArray();
-            return new { distanceKm = x.GetProperty("distance").GetDouble() / 1000, durationMin = x.GetProperty("duration").GetDouble() / 60,
-                corners = Geo.Curves(coords), geometry = coords, steps };
-        }).ToArray();
-        var chosen = mode switch
-        {
-            "short" => list.OrderBy(x => x.distanceKm).First(),
-            "eco" => list.OrderBy(x => x.distanceKm + x.corners * 0.008).First(),
-            "fun" => list.OrderByDescending(x => x.corners / Math.Max(x.distanceKm, 1)).First(),
-            _ => list.OrderBy(x => x.durationMin).First()
-        };
-        return Results.Ok(new { selectedMode = mode ?? "fast", alternatives = list.Length,
-            chosen.distanceKm, chosen.durationMin, chosen.geometry, chosen.steps, provider = fetched.Provider,
-            note = "ETA ohne Live-Verkehr; Fun/Eco sind heuristisch. Navigationshinweise sind experimentell." });
-    }
-    catch (Exception ex) when (ex is JsonException or InvalidOperationException or KeyNotFoundException)
-    {
-        app.Logger.LogWarning(ex, "Routing response could not be parsed");
-        return Bad("Routingdienst hat eine inkompatible Antwort geliefert. Bitte erneut versuchen.", 502);
-    }
-});
 api.MapGet("/elevation", async (string points, IHttpClientFactory factory) =>
 {
     // Up to 30 points (lat,lon|lat,lon) per call. The external provider may enforce rate limits.

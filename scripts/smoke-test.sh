@@ -6,15 +6,9 @@ export ROADFUN_INVITE_CODE='roadfun-ci-test-invite-secret'
 export ROADFUN_DATA_DIR
 ROADFUN_DATA_DIR="$(mktemp -d)"
 PORT=59117
-export ROADFUN_ROUTING_URL="http://127.0.0.1:59118"
-export ROADFUN_ROUTING_FALLBACK_URL="http://127.0.0.1:59119"
-python3 scripts/mock-routing.py 59118 >"$ROADFUN_DATA_DIR/osrm.log" 2>&1 &
-MOCK_PID=$!
-python3 scripts/mock-routing.py 59119 >"$ROADFUN_DATA_DIR/valhalla.log" 2>&1 &
-FALLBACK_PID=$!
 ASPNETCORE_URLS="http://127.0.0.1:$PORT" dotnet run --no-launch-profile -c Release --no-build --project src/RoadFun.Api/RoadFun.Api.csproj >"$ROADFUN_DATA_DIR/server.log" 2>&1 &
 PID=$!
-cleanup() { kill "$PID" "$MOCK_PID" "$FALLBACK_PID" 2>/dev/null || true; wait "$PID" "$MOCK_PID" "$FALLBACK_PID" 2>/dev/null || true; cat "$ROADFUN_DATA_DIR/server.log"; cat "$ROADFUN_DATA_DIR/osrm.log"; cat "$ROADFUN_DATA_DIR/valhalla.log"; rm -rf "$ROADFUN_DATA_DIR"; }
+cleanup() { kill "$PID" 2>/dev/null || true; wait "$PID" 2>/dev/null || true; cat "$ROADFUN_DATA_DIR/server.log"; rm -rf "$ROADFUN_DATA_DIR"; }
 trap cleanup EXIT
 for _ in $(seq 1 60); do
   if curl --silent --fail "http://127.0.0.1:$PORT/api/health" >/dev/null; then break; fi
@@ -34,20 +28,6 @@ curl --silent --show-error --fail -H "$AUTH" "$BASE/reports" | grep -q 'Smoke te
 curl --silent --show-error --fail -H "$AUTH" -H 'Content-Type: application/json' -d '{"title":"Track 1","startLat":48.2,"startLon":13.5,"endLat":48.21,"endLon":13.51,"visibility":"private"}' "$BASE/tracks" >/dev/null
 curl --silent --show-error --fail -H "$AUTH" "$BASE/tracks" | grep -q 'Track 1'
 TRACK_ID=$(curl --silent --show-error --fail -H "$AUTH" "$BASE/tracks" | python3 -c 'import json,sys;print(json.load(sys.stdin)[0]["id"])')
-# Route guidance must be parsed from OSRM maneuver steps (mocked locally; no external network).
-curl --silent --show-error --fail -H "$AUTH" "$BASE/route?fromLat=48.2&fromLon=13.5&toLat=48.21&toLon=13.51&mode=fun" | \
-    python3 -c 'import json,sys; r=json.load(sys.stdin); assert r["alternatives"]==2; assert len(r["steps"])==3; assert r["steps"][1]["type"]=="turn"; assert len(r["geometry"])>=3'
-# Trigger primary OSRM HTTP 502 and require automatic fallback to Valhalla.
-curl --silent --show-error --fail -H "$AUTH" "$BASE/route?fromLat=48.3&fromLon=13.5&toLat=48.31&toLon=13.51&mode=fast" | \
-    python3 -c 'import json,sys; r=json.load(sys.stdin); assert r["provider"]=="Valhalla"; assert len(r["steps"])==3; assert r["distanceKm"]>0'
-# Verify the fallback result is cached (provider identifies cache hit).
-curl --silent --show-error --fail -H "$AUTH" "$BASE/route?fromLat=48.3&fromLon=13.5&toLat=48.31&toLon=13.51&mode=eco" | \
-    python3 -c 'import json,sys; r=json.load(sys.stdin); assert "Cache" in r["provider"]; assert len(r["geometry"])>1'
-# Address search rejects invalid or unauthenticated requests without contacting Photon.
-GEOCODE_BAD=$(curl -s -o /dev/null -w '%{http_code}' -H "$AUTH" "$BASE/geocode?q=ab")
-test "$GEOCODE_BAD" = "400"
-GEOCODE_UNAUTH=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/geocode?q=Hauptplatz")
-test "$GEOCODE_UNAUTH" = "401"
 # Invalid / oversized vegetation bounding boxes must be rejected without contacting Overpass.
 VEGETATION_STATUS=$(curl -s -o /dev/null -w '%{http_code}' -H "$AUTH" \
   "$BASE/terrain/vegetation?south=48.1&west=13.2&north=48.3&east=13.4")

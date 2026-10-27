@@ -91,7 +91,7 @@ function render(){
   }
   const label=document.createElement("label");label.htmlFor="routeMode";label.textContent="Routenart";
   const select=document.createElement("select");select.id="routeMode";
-  for(const [value,text] of [["fast","Schnellste"],["short","Kürzeste"],["eco","Eco"],["fun","Kurvenreich"]]){
+  for(const [value,text] of [["fast","Schnellste"],["short","Kürzeste"],["eco","Eco"],["fun","Landstraße (Heuristik)"]]){
     const option=document.createElement("option");option.value=value;option.textContent=text;
     select.append(option);
   }
@@ -104,8 +104,16 @@ function render(){
   terrain.type="button";terrain.onclick=show3D;
   actions.append(calc,terrain);rootElement.append(actions);
   const note=document.createElement("p");note.className="route-planner-tip";
-  note.textContent="Route: lokal mit OSRM (falls installiert), sonst online. Keine Live-Staus.";
+  note.id="routeOfflineStatus";
+  note.textContent="Prüfe lokale Straßenkarte auf diesem Gerät …";
   rootElement.append(note);
+  if(root.RoadFunOffline)root.RoadFunOffline.status().then(result=>{
+    if(note.isConnected)
+      note.textContent="Offline-Karte geladen: "+result.nodes.toLocaleString("de-AT")+
+        " Straßenknoten · Region "+result.region+" · Routen werden auf diesem Gerät berechnet.";
+  }).catch(error=>{
+    if(note.isConnected)note.textContent=error.message;
+  });
   document.getElementById("closeRoutePlanner").onclick=()=>setTab("map");
 }
 root.RoadFunRoutePlanner={render,parseCoords};

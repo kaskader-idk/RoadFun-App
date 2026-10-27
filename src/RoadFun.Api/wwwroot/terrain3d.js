@@ -273,7 +273,7 @@
 
       const terrainSwitch=$("layerTerrain"),satSwitch=$("layerSatellite"),
         roadSwitch=$("layerRoad"),treeSwitch=$("layerTrees"),
-        gridSwitch=$("showSurroundings"),relief=$("terrainRelief");
+        buildingSwitch=$("layerBuildings"),gridSwitch=$("showSurroundings"),relief=$("terrainRelief");
       const treeLabel=$("treeCount"),buildingLabel=$("buildingCount");
       terrainSwitch.checked=true;satSwitch.checked=!!elev;roadSwitch.checked=true;
       treeSwitch.checked=!!elev;buildingSwitch.checked=!!elev;gridSwitch.checked=false;relief.value="1.5";
