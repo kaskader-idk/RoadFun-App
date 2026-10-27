@@ -7,11 +7,14 @@ export ROADFUN_DATA_DIR
 ROADFUN_DATA_DIR="$(mktemp -d)"
 PORT=59117
 export ROADFUN_ROUTING_URL="http://127.0.0.1:59118"
-python3 scripts/mock-routing.py >"$ROADFUN_DATA_DIR/osrm.log" 2>&1 &
+export ROADFUN_ROUTING_FALLBACK_URL="http://127.0.0.1:59119"
+python3 scripts/mock-routing.py 59118 >"$ROADFUN_DATA_DIR/osrm.log" 2>&1 &
 MOCK_PID=$!
+python3 scripts/mock-routing.py 59119 >"$ROADFUN_DATA_DIR/valhalla.log" 2>&1 &
+FALLBACK_PID=$!
 ASPNETCORE_URLS="http://127.0.0.1:$PORT" dotnet run --no-launch-profile -c Release --no-build --project src/RoadFun.Api/RoadFun.Api.csproj >"$ROADFUN_DATA_DIR/server.log" 2>&1 &
 PID=$!
-cleanup() { kill "$PID" "$MOCK_PID" 2>/dev/null || true; wait "$PID" "$MOCK_PID" 2>/dev/null || true; cat "$ROADFUN_DATA_DIR/server.log"; cat "$ROADFUN_DATA_DIR/osrm.log"; rm -rf "$ROADFUN_DATA_DIR"; }
+cleanup() { kill "$PID" "$MOCK_PID" "$FALLBACK_PID" 2>/dev/null || true; wait "$PID" "$MOCK_PID" "$FALLBACK_PID" 2>/dev/null || true; cat "$ROADFUN_DATA_DIR/server.log"; cat "$ROADFUN_DATA_DIR/osrm.log"; cat "$ROADFUN_DATA_DIR/valhalla.log"; rm -rf "$ROADFUN_DATA_DIR"; }
 trap cleanup EXIT
 for _ in $(seq 1 60); do
   if curl --silent --fail "http://127.0.0.1:$PORT/api/health" >/dev/null; then break; fi
@@ -34,6 +37,12 @@ TRACK_ID=$(curl --silent --show-error --fail -H "$AUTH" "$BASE/tracks" | python3
 # Route guidance must be parsed from OSRM maneuver steps (mocked locally; no external network).
 curl --silent --show-error --fail -H "$AUTH" "$BASE/route?fromLat=48.2&fromLon=13.5&toLat=48.21&toLon=13.51&mode=fun" | \
     python3 -c 'import json,sys; r=json.load(sys.stdin); assert r["alternatives"]==2; assert len(r["steps"])==3; assert r["steps"][1]["type"]=="turn"; assert len(r["geometry"])>=3'
+# Trigger primary OSRM HTTP 502 and require automatic fallback to Valhalla.
+curl --silent --show-error --fail -H "$AUTH" "$BASE/route?fromLat=48.3&fromLon=13.5&toLat=48.31&toLon=13.51&mode=fast" | \
+    python3 -c 'import json,sys; r=json.load(sys.stdin); assert r["provider"]=="Valhalla"; assert len(r["steps"])==3; assert r["distanceKm"]>0'
+# Verify the fallback result is cached (provider identifies cache hit).
+curl --silent --show-error --fail -H "$AUTH" "$BASE/route?fromLat=48.3&fromLon=13.5&toLat=48.31&toLon=13.51&mode=eco" | \
+    python3 -c 'import json,sys; r=json.load(sys.stdin); assert "Cache" in r["provider"]; assert len(r["geometry"])>1'
 # Exercise invitations, friend approvals, chat, meet creation and admin login.
 CODE2=$(curl --silent --show-error --fail -H 'Content-Type: application/json' -d '{"username":"friend","password":"a-very-long-test-password","inviteCode":"roadfun-ci-test-invite-secret"}' "$BASE/auth/register")
 TOKEN2=$(printf '%s' "$CODE2" | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')
