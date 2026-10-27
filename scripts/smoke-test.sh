@@ -38,7 +38,8 @@ curl --silent --show-error --fail -H "$AUTH2" -X POST "$BASE/friends/$REQUEST_ID
 curl --silent --show-error --fail -H "$AUTH" -H 'Content-Type: application/json' -d '{"body":"Hello from smoke test"}' "$BASE/messages/$FRIEND_CODE" >/dev/null
 USER_CODE=$(curl --silent --show-error --fail -H "$AUTH" "$BASE/me" | python3 -c 'import json,sys;print(json.load(sys.stdin)["code"])')
 curl --silent --show-error --fail -H "$AUTH2" "$BASE/messages/$USER_CODE" | grep -q 'Hello from smoke test'
-curl --silent --show-error --fail -H "$AUTH" -H 'Content-Type: application/json' -d '{"title":"Smoke Meet","lat":48.2,"lon":13.5,"startsAt":"2030-01-01T15:00:00Z","description":"Test"}' "$BASE/meets" >/dev/null
+MEET_DATE="$(date -u -d '+2 days' +'%Y-%m-%dT%H:%M:%SZ')"
+curl --silent --show-error --fail -H "$AUTH" -H 'Content-Type: application/json' -d "{\"title\":\"Smoke Meet\",\"lat\":48.2,\"lon\":13.5,\"startsAt\":\"$MEET_DATE\",\"description\":\"Test\"}" "$BASE/meets" >/dev/null
 # Admin name/password are configurable rather than using the insecure PLANS.md default.
 curl --silent --show-error --fail -H 'Content-Type: application/json' -d '{"username":"Admin","password":"roadfun-test-admin-password-is-long"}' "$BASE/auth/login" | grep -q 'token'
 STATUS=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/me")
