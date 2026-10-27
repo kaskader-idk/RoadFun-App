@@ -337,6 +337,22 @@ api.MapPost("/runs", (HttpContext ctx, NewRun req) =>
     return Results.Ok(new { success = true, verified = false });
 });
 
+api.MapGet("/geocode", async (string q, double? lat, double? lon,
+    IHttpClientFactory factory, CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var json=await Geocoding.Search(q,lat,lon,factory,cancellationToken);
+        return Results.Content(json,"application/json; charset=utf-8");
+    }
+    catch(ArgumentException ex) { return Bad(ex.Message); }
+    catch(Exception ex) when (ex is HttpRequestException or TimeoutException or
+        TaskCanceledException or InvalidOperationException or JsonException)
+    {
+        app.Logger.LogWarning(ex,"Photon geocoder unavailable");
+        return Bad("Adresssuche derzeit nicht verfügbar. Koordinaten oder Kartenauswahl funktionieren weiterhin.",503);
+    }
+});
 api.MapGet("/terrain/vegetation", async (double south, double west, double north, double east,
     IHttpClientFactory factory, CancellationToken cancellationToken) =>
 {
