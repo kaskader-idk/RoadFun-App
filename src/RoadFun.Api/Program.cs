@@ -38,6 +38,13 @@ if (!string.IsNullOrWhiteSpace(adminPassword))
             ("$id", Guid.NewGuid().ToString("N")), ("$pw", Auth.Hash(adminPassword)), ("$code", Auth.Code()));
 }
 var app = builder.Build();
+app.Use(async (ctx, next) =>
+{
+    ctx.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    ctx.Response.Headers["X-Frame-Options"] = "DENY";
+    ctx.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+    await next();
+});
 app.UseRateLimiter();
 app.UseDefaultFiles();
 app.UseStaticFiles();
@@ -64,7 +71,7 @@ api.MapPost("/auth/register", (Register req) =>
 {
     var invite = Environment.GetEnvironmentVariable("ROADFUN_INVITE_CODE");
     if (string.IsNullOrEmpty(invite) || !Auth.Equal(invite, req.InviteCode ?? "")) return Bad("Ungültiger Einladungscode", 403);
-    if (!Regex.IsMatch(req.Username ?? "", "^[a-zA-Z0-9_]{3,24}$") || req.Password?.Length < 10) return Bad("Name: 3–24 Zeichen (a-z, 0-9, _); Passwort: mindestens 10 Zeichen");
+    if (!Regex.IsMatch(req.Username ?? "", "^[a-zA-Z0-9_]{3,24}$") || req.Password?.Length < 10 || string.Equals(req.Username, "Admin", StringComparison.OrdinalIgnoreCase)) return Bad("Name: 3–24 Zeichen (a-z, 0-9, _), nicht Admin; Passwort: mindestens 10 Zeichen");
     if (db.One("SELECT id FROM users WHERE username=$n", ("$n", req.Username)) is not null) return Bad("Name bereits vergeben", 409);
     var id = Guid.NewGuid().ToString("N");
     try { db.Exec("INSERT INTO users(id,username,pass_hash,code) VALUES($id,$n,$p,$c)", ("$id", id), ("$n", req.Username), ("$p", Auth.Hash(req.Password)), ("$c", Auth.Code())); }
@@ -193,6 +200,9 @@ api.MapPost("/location", (HttpContext ctx, Location req) =>
 });
 api.MapGet("/map/people", (HttpContext ctx) =>
 {
+    // Clear stale coordinates, not merely hide them.
+    db.Exec("UPDATE users SET lat=NULL,lon=NULL,accuracy=NULL,updated_at=NULL WHERE updated_at < $old",
+        ("$old", DateTimeOffset.UtcNow.AddMinutes(-3).ToUnixTimeSeconds()));
     var user = U(ctx); var id = S(user, "id");
     var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds() - 180;
     var admin = N(user, "is_admin") == 1;
@@ -210,9 +220,13 @@ api.MapGet("/admin/users", (HttpContext ctx) =>
 });
 
 var allowedReports = new[] { "police", "speedcam_mobile", "speedcam_fixed", "traffic", "hazard" };
-api.MapGet("/reports", () => Results.Ok(db.All(@"SELECT r.id,r.kind,r.lat,r.lon,r.heading,r.note,r.created_at,r.expires_at,u.username author
+api.MapGet("/reports", () =>
+{
+  db.Exec("DELETE FROM reports WHERE expires_at < $now", ("$now", DateTimeOffset.UtcNow.ToUnixTimeSeconds()));
+  return Results.Ok(db.All(@"SELECT r.id,r.kind,r.lat,r.lon,r.heading,r.note,r.created_at,r.expires_at,u.username author
   FROM reports r JOIN users u ON r.user_id=u.id WHERE r.expires_at>$t ORDER BY r.created_at DESC LIMIT 300",
-  ("$t", DateTimeOffset.UtcNow.ToUnixTimeSeconds()))));
+  ("$t", DateTimeOffset.UtcNow.ToUnixTimeSeconds())));
+});
 api.MapPost("/reports", (HttpContext ctx, NewReport req) =>
 {
     if (!allowedReports.Contains(req.Kind) || !ValidPoint(req.Lat, req.Lon) || (req.Note?.Length ?? 0) > 240 ||
