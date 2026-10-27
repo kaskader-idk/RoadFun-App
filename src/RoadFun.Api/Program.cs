@@ -30,9 +30,15 @@ Directory.CreateDirectory(avatarDir);
 var db = new Store(Path.Combine(dataDir, "roadfun.db"));
 db.Init();
 var adminPassword = Environment.GetEnvironmentVariable("ROADFUN_ADMIN_PASSWORD");
-if (!string.IsNullOrWhiteSpace(adminPassword))
+var privateInvite = Environment.GetEnvironmentVariable("ROADFUN_INVITE_CODE");
+if (string.IsNullOrWhiteSpace(adminPassword) || adminPassword.Length < 12 ||
+    adminPassword.StartsWith("REPLACE-", StringComparison.OrdinalIgnoreCase))
+    throw new Exception("Set a unique ROADFUN_ADMIN_PASSWORD (>=12 characters) in .env");
+if (string.IsNullOrWhiteSpace(privateInvite) || privateInvite.Length < 16 ||
+    privateInvite.StartsWith("REPLACE-", StringComparison.OrdinalIgnoreCase))
+    throw new Exception("Set a unique ROADFUN_INVITE_CODE (>=16 characters) in .env");
 {
-    if (adminPassword.Length < 12) throw new Exception("ROADFUN_ADMIN_PASSWORD must be at least 12 characters");
+    // Seed only on the first start; never silently overwrite an existing password.
     if (db.One("SELECT id FROM users WHERE username='Admin'") is null)
         db.Exec("INSERT INTO users(id,username,pass_hash,code,is_admin) VALUES($id,'Admin',$pw,$code,1)",
             ("$id", Guid.NewGuid().ToString("N")), ("$pw", Auth.Hash(adminPassword)), ("$code", Auth.Code()));
