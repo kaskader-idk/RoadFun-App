@@ -182,8 +182,30 @@
     }
     return treePositions;
   }
+  function buildingsFromOverpass(elements, region, limit=180) {
+    const result=[];
+    for (const item of Array.isArray(elements)?elements:[]) {
+      if(result.length>=limit)break;
+      if(item.type!=="way"||!item.tags?.building||!Array.isArray(item.geometry))continue;
+      const pts=item.geometry.filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lon));
+      if(pts.length<4||pts.length>120)continue;
+      const poly=pts.slice(0,-1);
+      if(poly.length<3)continue;
+      const center={lat:poly.reduce((a,p)=>a+p.lat,0)/poly.length,
+        lon:poly.reduce((a,p)=>a+p.lon,0)/poly.length};
+      if(center.lat<region.south||center.lat>region.north||
+        center.lon<region.west||center.lon>region.east)continue;
+      const meters=Number.parseFloat(String(item.tags.height||""));
+      const levels=Number.parseFloat(String(item.tags["building:levels"]||""));
+      const heightMeters=Number.isFinite(meters)&&meters>0?meters:
+        Number.isFinite(levels)&&levels>0?levels*3:9;
+      result.push({id:item.id,polygon:poly,center,heightMeters:clamp(heightMeters,2,90),
+        roof:item.tags["roof:shape"]||null,kind:item.tags.building});
+    }
+    return result;
+  }
   const api={tileXY,tileLatLon,tileBound,tileList,coverage,bbox,projectFactory,heightTerrarium,bilinear,
-    terrainUrl,satelliteUrl,loadImage,demSampler,pointInside,vegetationFromOverpass};
+    terrainUrl,satelliteUrl,loadImage,demSampler,pointInside,vegetationFromOverpass,buildingsFromOverpass};
   if(typeof module!=="undefined"&&module.exports)module.exports=api;
   global.RoadFunTerrain=api;
 })(typeof window!=="undefined"?window:globalThis);
