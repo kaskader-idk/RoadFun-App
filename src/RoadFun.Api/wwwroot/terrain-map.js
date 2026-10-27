@@ -52,7 +52,16 @@
     while(zoom>5 && tileList(b,zoom).length>maxTiles) zoom--;
     const imagery=tileList(b,zoom);
     const demZoom=Math.min(13,zoom);
-    const dem=tileList(b,demZoom);
+    const imageryBounds={
+      west:Math.min(...imagery.map(t=>t.bounds.west)),
+      east:Math.max(...imagery.map(t=>t.bounds.east)),
+      north:Math.max(...imagery.map(t=>t.bounds.north)),
+      south:Math.min(...imagery.map(t=>t.bounds.south))
+    };
+    const dem=tileList({
+      west:imageryBounds.west+1e-8,east:imageryBounds.east-1e-8,
+      south:imageryBounds.south+1e-8,north:imageryBounds.north-1e-8
+    },demZoom);
     // Geospatially accurate tile envelopes (OSM's common XYZ/WebMercator scheme).
     return {bbox:b,routeBBox:base,zoom,demZoom,imagery,dem};
   }
