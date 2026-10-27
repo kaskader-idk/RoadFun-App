@@ -518,7 +518,7 @@ $("closeModal").onclick=()=>{
   $("terrain").innerHTML="";
 };
 setInterval(()=>{if(state.timer?.status==="running")updateTimerDisplay();},1000);
-setInterval(()=>{if(state.tab==="friends"&&state.friendCode&&$("chatPanel")&&!$("chatForm textarea:focus"))renderChat();},10000);
+setInterval(()=>{if(state.tab==="friends"&&state.friendCode&&$("chatPanel")&&!document.querySelector("#chatForm textarea:focus"))renderChat();},10000);
 if("serviceWorker" in navigator&&window.isSecureContext)navigator.serviceWorker.register("/sw.js").catch(()=>{});
 initMap();
 boot();
