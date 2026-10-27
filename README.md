@@ -15,7 +15,7 @@
 | Routenwahl schnell / kurz / eco / fun, KM und ETA | 🟡 OSRM-Alternativen; eco/fun nur Heuristiken, **keine** Live-Verkehrsdaten |
 | Experimentelle GPS-Manöver-Navigation mit optionaler Sprache | 🟡 Neu: Abbiegungen von OSRM, Anzeige und Sprachausgabe im Vordergrund; kein Re-Routing |
 | Strecken auf Karte anlegen, GPS-Auto-Timer, Distanz, max/Ø km/h, Längs-g | 🟡 GPS-basiert, nicht verifiziert, nur abgesperrte Strecken |
-| Drehbare 3D-Routen-Höhenansicht, Raster ein/aus | 🟡 Geglättete, breite Straßenfläche entlang der GPS-Routengeometrie; keine echten Straßenbreiten/Gebäude |
+| 3D-Gelände entlang der Route, Satellitenbilder, OSM-Bäume und 5 Ebenen-Schalter | 🟡 Mapzen DEM + Esri World Imagery + OSM (Bäume in Wäldern nur modellhaft, keine Gebäude) |
 | Admin-Fahrerkarte | ✅ Nur aktive, ausdrücklich freigegebene Standorte |
 | Native iOS IPA / Android APK, Hintergrund-GPS, Turn-by-Turn | ❌ Noch nicht umgesetzt |
 | Microsoft SQL Server .mdf | ❌ Stattdessen SQLite (Linux-tauglich, siehe unten) |
@@ -74,6 +74,27 @@ docker run --rm --network container:roadfun curlimages/curl:latest -I --max-time
 Wenn **beide** externen Dienste ausfallen, liegt das Problem wahrscheinlich bei DNS, TLS, Docker-Networking oder den öffentlichen Servern. Ein lokaler OSRM/Valhalla-Server über `ROADFUN_ROUTING_URL` ist langfristig zuverlässiger. Die zweite Engine lässt sich via `ROADFUN_ROUTING_FALLBACK_URL` konfigurieren (oder auf `disabled` setzen).
 
 OSRM und Valhalla sind **öffentliche Demo-Server**, keine garantierten Produktivdienste. Bitte sparsam verwenden (RoadFun drosselt Demo-Anfragen) und die entsprechenden Nutzungsrichtlinien einhalten: https://github-wiki-see.page/m/Project-OSRM/osrm-backend/wiki/Demo-server und https://valhalla.github.io/valhalla/start/introduction/. Die Abfrage überträgt Start- und Zielkoordinaten an den jeweiligen Dienst.
+
+## Neu: Realitätsnäheres 3D-Gelände, Satellit und Vegetation
+
+Im **3D-Höhen**-Fenster wird die berechnete Route auf ein echtes Höhenmodell drapiert statt frei im Raum angezeigt. Umgebendes Gelände wird aus [Mapzen Terrain Tiles / AWS Open Data](https://registry.opendata.aws/terrain-tiles/) erzeugt (Terrarium-RGB dekodiert als Höhe in Metern). [Esri World Imagery](https://www.esri.com/en-us/arcgis/products/arcgis-online/resources) kann als Satellitentextur darüber angezeigt werden. Die Straße bleibt die geglättete OSRM/Valhalla-Geometrie.
+
+**Unabhängige 3D-Schalter:** Gelände, Satellitenbilder, Bäume, Straße sowie Raster/Nordpfeil; außerdem frei einstellbare Reliefüberhöhung und Kamera-Reset. Startmarker grün, Zielmarker rot.
+
+**Bäume:** Der Backend-Endpunkt `/api/terrain/vegetation` fragt mit einem **serverseitig festgelegten, begrenzten Overpass-QL-Ausdruck** einen kleinen Ausschnitt über [OpenStreetMap / Overpass by Private.coffee](https://overpass.private.coffee/) ab. Einzelne mit `natural=tree` markierte Bäume werden an ihrem echten OSM-Kartenpunkt platziert. Für `natural=wood`- bzw. `landuse=forest`-Polygone verteilt RoadFun **stilisierte, deterministisch erzeugte Modelle** innerhalb der Flächen. Dies ist **keine** vollständige Messung einzelner Baumstandorte oder eine 3D-Rekonstruktion: unkartierte Baumgruppen fehlen, Satellitenbilder können älter sein.
+
+**Daten-/Leistungslimits:** maximal 16 Satellitenkacheln pro angezeigter Route, automatisch reduzierter Detailgrad für lange Routen; maximal 500 Baum-Modelle; maximal 0,12° pro Achse für detaillierte Vegetationsabfragen. Höhenraster wird passend zur Karte auf maximal Zoom 13 geladen, damit das iPhone nicht überlastet wird. Externe Quellen erfordern Internetzugriff **vom iPhone/Browser** (Satellit und Höhenkacheln) bzw. **vom RoadFun-Docker-Container** (Baumdaten). Ein Ausfall von Satellitenbildern wird durch eine einfarbige Reliefkarte abgefangen; bei Ausfall des Mapzen-Dienstes wird auf die ältere Höhenlinien-Ansicht zurückgefallen.
+
+**Datenschutz und Urheberrecht:** Die Abfrage von Satelliten-/Höhenkacheln überträgt den gewählten Kartenausschnitt an Esri bzw. AWS; der OSM-Baumdienst erhält den Ausschnitt vom Server. Keine Weitergabe von Account-Passwörtern. Esri-Bilder dürfen nur gemäß den geltenden Nutzungsbedingungen verwendet werden; die Kartendarstellung zeigt die jeweiligen Quellen und ein dauerhaftes Quellenfeld. OSM-Daten stehen unter ODbL und benötigen Attribution. Höhenquellen können regional unterschiedliche Qualität und Auflösung haben.
+
+**Update (Volume und Accounts bleiben erhalten):**
+```bash
+cd ~/RoadFun-App
+git pull --ff-only
+docker compose up -d --build
+docker compose ps
+```
+Die PWA-Asset-Version wurde erhöht; bei veralteter Ansicht Safari neu laden bzw. die Homescreen-App ganz schließen.
 
 ## 3D-Routenansicht: korrekt ausgerichtete, breite Straßenkurve
 
