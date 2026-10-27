@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="/icon.svg">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous">
-<link rel="stylesheet" href="/style.css?v=1">
+<link rel="stylesheet" href="/style.css?v=2">
 </head><body>
 <header><div class="brand"><span class="logo">R<span>F</span></span><div>Road<span class="accent">Fun</span><small>DRIVE · DISCOVER · CONNECT</small></div></div>
 <div class="header-actions"><span id="gpsStatus" class="pill">GPS aus</span><button id="openProfile" class="avatar-button" title="Profil">?</button></div></header>
@@ -21,6 +21,15 @@
   <button id="centerGps" title="Zu meiner Position">◎</button><button id="refreshMap" title="Aktualisieren">↻</button>
  </div><div id="mapHint" class="map-hint" hidden></div>
  <div id="routeSummary" class="floating-card" hidden></div>
+ <div id="navCard" class="nav-card" role="status" aria-live="polite" hidden>
+  <div class="nav-eyebrow">⌖ GPS-NAVIGATION · TESTVERSION</div>
+  <strong id="navInstruction">Route folgen</strong>
+  <div id="navDistance" class="nav-distance">–</div>
+  <p id="navRoad">GPS wird ermittelt …</p>
+  <div class="nav-bottom"><label class="checkbox-row"><input id="navVoice" type="checkbox"> Sprachhinweise</label>
+   <button id="stopNavigation" class="danger" type="button">Beenden</button></div>
+  <p class="muted tiny">Experimentell: Keine automatische Neuberechnung; keine Live-Staus. Vor Fahrtbeginn bedienen.</p>
+ </div>
  <div class="map-legend"><i class="dot red"></i>Meldungen <i class="dot amber"></i>Treffen <i class="dot blue"></i>Freunde</div>
  </main><section id="panel" class="panel" hidden><div class="panel-head"><h2 id="panelTitle"></h2><button id="closePanel" class="icon-button">✕</button></div><div id="panelContent"></div></section>
 </div>
@@ -39,5 +48,6 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-<script defer src="/app.js?v=1"></script>
+<script defer src="/app.js?v=2"></script>
+<script defer src="/navigation.js?v=2"></script>
 </body></html>
