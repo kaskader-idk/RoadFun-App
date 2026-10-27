@@ -470,60 +470,12 @@ function renderAdmin(){
 }
 
 /* Lightweight orbitable 3D elevation line. No synthetic elevation if provider is unavailable. */
-async function show3D(){
-  if(!state.route?.geometry?.length)return toast("Bitte zuerst eine Route berechnen",true);
-  if(!window.THREE||!window.THREE.OrbitControls)return toast("3D-Bibliothek nicht geladen",true);
-  $("modal").hidden=false;
-  const root=$("terrain");root.innerHTML='<p style="padding:20px">Lade echte Höhendaten …</p>';
-  const coordinates=state.route.geometry;
-  const sample=Array.from({length:Math.min(30,coordinates.length)},(_,i)=>
-    coordinates[Math.round(i*(coordinates.length-1)/(Math.min(30,coordinates.length)-1))]);
-  let heights;
-  try{
-    const r=await api("/elevation?points="+encodeURIComponent(sample.map(p=>p[1]+","+p[0]).join("|")));
-    heights=r.elevations;
-    if(heights.some(v=>v==null))throw Error("Höhenpunkte fehlen");
-  }catch(e){root.textContent="Keine Höhendaten verfügbar: "+e.message;return}
-  root.innerHTML="";
-  if(state.three){cancelAnimationFrame(state.three.anim);state.three.renderer.dispose();state.three=null}
-  const width=root.clientWidth,height=root.clientHeight;
-  const scene=new THREE.Scene();scene.background=new THREE.Color(0x0b1728);
-  const camera=new THREE.PerspectiveCamera(48,width/height,.1,5000);
-  const renderer=new THREE.WebGLRenderer({antialias:true});renderer.setSize(width,height);
-  renderer.setPixelRatio(Math.min(devicePixelRatio,2));root.appendChild(renderer.domElement);
-  const controls=new THREE.OrbitControls(camera,renderer.domElement);controls.enableDamping=true;
-  const minLon=Math.min(...sample.map(p=>p[0])),maxLon=Math.max(...sample.map(p=>p[0]));
-  const minLat=Math.min(...sample.map(p=>p[1])),maxLat=Math.max(...sample.map(p=>p[1]));
-  const centerLon=(minLon+maxLon)/2,centerLat=(minLat+maxLat)/2;
-  const scale=80/Math.max((maxLon-minLon)*Math.cos(centerLat*Math.PI/180),(maxLat-minLat),.0001);
-  const bottom=Math.min(...heights);
-  const vectors=sample.map((p,i)=>new THREE.Vector3(
-    (p[0]-centerLon)*Math.cos(centerLat*Math.PI/180)*scale,
-    (heights[i]-bottom)*.055+2,(p[1]-centerLat)*scale));
-  const geo=new THREE.BufferGeometry().setFromPoints(vectors);
-  const line=new THREE.Line(geo,new THREE.LineBasicMaterial({color:0x37a7ff}));
-  scene.add(line);
-  vectors.forEach(v=>{const g=new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(v.x,0,v.z),v]);
-    scene.add(new THREE.Line(g,new THREE.LineBasicMaterial({color:0x215776,transparent:true,opacity:.6})))});
-  const grid=new THREE.GridHelper(110,22,0x386185,0x28415b);scene.add(grid);
-  const floor=new THREE.Mesh(new THREE.PlaneGeometry(110,110),
-    new THREE.MeshBasicMaterial({color:0x19364a,transparent:true,opacity:.2,side:THREE.DoubleSide}));
-  floor.rotation.x=-Math.PI/2;floor.position.y=-.05;scene.add(floor);
-  const bbox=new THREE.Box3().setFromPoints(vectors);const center=bbox.getCenter(new THREE.Vector3());
-  const extent=Math.max(bbox.getSize(new THREE.Vector3()).length(),50);
-  camera.position.set(center.x+extent*.8,center.y+extent*.65,center.z+extent*.8);
-  controls.target.copy(center);controls.update();
-  $("showSurroundings").checked=true;$("showSurroundings").onchange=e=>{grid.visible=floor.visible=e.target.checked};
-  const view={renderer,anim:null};state.three=view;
-  const tick=()=>{if(state.three!==view)return;view.anim=requestAnimationFrame(tick);controls.update();renderer.render(scene,camera)};
-  tick();
+async function show3D() {
+  if (!state.route?.geometry?.length) return toast("Bitte zuerst eine Route berechnen", true);
+  if (!window.RoadFun3D) return toast("3D-Modul fehlt. App neu laden.", true);
+  await window.RoadFun3D.open(state.route.geometry, api, toast);
 }
-$("closeModal").onclick=()=>{
-  $("modal").hidden=true;
-  if(state.three){cancelAnimationFrame(state.three.anim);state.three.renderer.dispose();state.three=null}
-  $("terrain").innerHTML="";
-};
+$("closeModal").onclick = () => window.RoadFun3D?.close();
 setInterval(()=>{if(state.timer?.status==="running")updateTimerDisplay();},1000);
 setInterval(()=>{if(state.tab==="friends"&&state.friendCode&&$("chatPanel")&&!document.querySelector("#chatForm textarea:focus"))renderChat();},10000);
 if("serviceWorker" in navigator&&window.isSecureContext)navigator.serviceWorker.register("/sw.js").catch(()=>{});

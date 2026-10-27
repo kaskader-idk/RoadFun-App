@@ -15,7 +15,7 @@
 | Routenwahl schnell / kurz / eco / fun, KM und ETA | 🟡 OSRM-Alternativen; eco/fun nur Heuristiken, **keine** Live-Verkehrsdaten |
 | Experimentelle GPS-Manöver-Navigation mit optionaler Sprache | 🟡 Neu: Abbiegungen von OSRM, Anzeige und Sprachausgabe im Vordergrund; kein Re-Routing |
 | Strecken auf Karte anlegen, GPS-Auto-Timer, Distanz, max/Ø km/h, Längs-g | 🟡 GPS-basiert, nicht verifiziert, nur abgesperrte Strecken |
-| Drehbare 3D-Routen-Höhenansicht, Raster ein/aus | 🟡 Höhenlinie statt vollwertigem 3D-Terrain oder Gebäuden |
+| Drehbare 3D-Routen-Höhenansicht, Raster ein/aus | 🟡 Geglättete, breite Straßenfläche entlang der GPS-Routengeometrie; keine echten Straßenbreiten/Gebäude |
 | Admin-Fahrerkarte | ✅ Nur aktive, ausdrücklich freigegebene Standorte |
 | Native iOS IPA / Android APK, Hintergrund-GPS, Turn-by-Turn | ❌ Noch nicht umgesetzt |
 | Microsoft SQL Server .mdf | ❌ Stattdessen SQLite (Linux-tauglich, siehe unten) |
@@ -74,6 +74,16 @@ docker run --rm --network container:roadfun curlimages/curl:latest -I --max-time
 Wenn **beide** externen Dienste ausfallen, liegt das Problem wahrscheinlich bei DNS, TLS, Docker-Networking oder den öffentlichen Servern. Ein lokaler OSRM/Valhalla-Server über `ROADFUN_ROUTING_URL` ist langfristig zuverlässiger. Die zweite Engine lässt sich via `ROADFUN_ROUTING_FALLBACK_URL` konfigurieren (oder auf `disabled` setzen).
 
 OSRM und Valhalla sind **öffentliche Demo-Server**, keine garantierten Produktivdienste. Bitte sparsam verwenden (RoadFun drosselt Demo-Anfragen) und die entsprechenden Nutzungsrichtlinien einhalten: https://github-wiki-see.page/m/Project-OSRM/osrm-backend/wiki/Demo-server und https://valhalla.github.io/valhalla/start/introduction/. Die Abfrage überträgt Start- und Zielkoordinaten an den jeweiligen Dienst.
+
+## 3D-Routenansicht: korrekt ausgerichtete, breite Straßenkurve
+
+Die 3D-Ansicht verwendet jetzt **alle detailreichen Koordinaten** der berechneten Route als Kurvenstützpunkte statt nur 30 geradlinig verbundene Punkte. Eine **centripetale Catmull-Rom-Kurve** glättet die Anzeige und erzeugt eine **breite blaue Straßenfläche** mit hellen Außenkanten, grünem Startpunkt und rotem Zielpunkt. Der Nordpfeil zeigt im 3D-Koordinatensystem wirklich nach Norden; Osten ist rechts, Norden vorne oben aus der voreingestellten Kameraposition. Die Kamera ist weiterhin vollständig drehbar, und **Ansicht zurücksetzen** stellt die Ausgangsperspektive wieder her.
+
+Die bis zu 30 extern abgefragten Höhendatenpunkte werden nun **nach echter Entfernung entlang der Route** verteilt und anschließend für jeden detaillierten Routenpunkt interpoliert. Das verhindert, dass Höhenwerte fälschlich nach Arrayposition statt nach Streckenlänge zugeordnet werden.
+
+Die Linienbreite ist **zur Sichtbarkeit bewusst übertrieben**. Das Gelände bleibt ein ebenes Raster; es handelt sich nicht um echte 3D-Landschaft, realistische Fahrbahnabmessungen oder LIDAR-Straßendaten.
+
+Für die iPhone-PWA wurden die Dateien versionsweise aktualisiert. Nach dem Serverupdate die RoadFun-App schließen und neu öffnen; falls notwendig in Safari die Website neu laden.
 
 ## Installation auf deinem Proxmox-Server (Debian-LXC oder Debian-VM)
 
