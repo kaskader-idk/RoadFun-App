@@ -87,8 +87,10 @@ function pick(label, setter) {
 function setTab(tab) {
   state.tab = tab;
   document.querySelectorAll("#nav button").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
-  $("panel").hidden = tab === "map";
+  $("routePlanner").hidden = tab !== "route";
+  $("panel").hidden = tab === "map" || tab === "route";
   if (tab === "map") { setTimeout(() => state.map.invalidateSize(), 100); return; }
+  if (tab === "route") { renderRoute();setTimeout(()=>state.map.invalidateSize(),100);return; }
   const names = { route:"Route planen", report:"Meldung erstellen", tracks:"Strecken & GPS", meets:"Car Meets",
     friends:"Freunde & Chat", profile:"Mein Profil", admin:"Administration" };
   $("panelTitle").textContent = names[tab] || "RoadFun";
