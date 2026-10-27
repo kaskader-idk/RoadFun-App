@@ -1,0 +1,23 @@
+services:
+  roadfun:
+    build: .
+    container_name: roadfun
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      ROADFUN_DATA_DIR: /data
+      ROADFUN_ADMIN_PASSWORD: ${ROADFUN_ADMIN_PASSWORD:?Set a strong admin password in .env}
+      ROADFUN_INVITE_CODE: ${ROADFUN_INVITE_CODE:?Set a private invitation code in .env}
+      ROADFUN_ROUTING_URL: ${ROADFUN_ROUTING_URL:-https://router.project-osrm.org}
+      ROADFUN_ELEVATION_URL: ${ROADFUN_ELEVATION_URL:-https://api.opentopodata.org/v1/srtm90m}
+    ports:
+      - "8090:8080"
+    volumes:
+      - roadfun_data:/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  roadfun_data:
