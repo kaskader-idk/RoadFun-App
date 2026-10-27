@@ -337,18 +337,22 @@ api.MapPost("/runs", (HttpContext ctx, NewRun req) =>
     return Results.Ok(new { success = true, verified = false });
 });
 
-api.MapGet("/route", async (double fromLat, double fromLon, double toLat, double toLon, string? mode, IHttpClientFactory factory) =>
+api.MapGet("/route", async (double fromLat, double fromLon, double toLat, double toLon, string? mode,
+    IHttpClientFactory factory, CancellationToken cancellation) =>
 {
     if (!ValidPoint(fromLat, fromLon) || !ValidPoint(toLat, toLon)) return Bad("Ungültige Koordinaten");
-    var baseUrl = (Environment.GetEnvironmentVariable("ROADFUN_ROUTING_URL") ?? "https://router.project-osrm.org").TrimEnd('/');
-    if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri) || (uri.Scheme != "https" && uri.Scheme != "http")) return Bad("Routing-Server ungültig", 503);
-    var u = baseUrl + "/route/v1/driving/" + fromLon.ToString(CultureInfo.InvariantCulture) + "," + fromLat.ToString(CultureInfo.InvariantCulture) +
-        ";" + toLon.ToString(CultureInfo.InvariantCulture) + "," + toLat.ToString(CultureInfo.InvariantCulture) + "?overview=full&geometries=geojson&alternatives=true&steps=true";
+    if (mode is not (null or "fast" or "short" or "eco" or "fun")) return Bad("Ungültiger Routenmodus");
+    var fetched = await RoutingFallback.Fetch(factory.CreateClient("routing"),
+        fromLat, fromLon, toLat, toLon, app.Logger, cancellation);
+    if (fetched.Json is null)
+    {
+        if (fetched.NoRoute) return Bad("Keine befahrbare Straßenroute gefunden (Start/Ziel prüfen)", 404);
+        return Bad("Routenberechnung gerade nicht möglich. " + fetched.Reason +
+            ". Prüfe die Internetverbindung des RoadFun-Containers und die Routing-Server-Einstellungen.", 503);
+    }
+    using var json = fetched.Json;
     try
     {
-        var res = await factory.CreateClient("routing").GetAsync(u);
-        if (!res.IsSuccessStatusCode) return Bad("Routing-Dienst nicht verfügbar", 502);
-        using var json = JsonDocument.Parse(await res.Content.ReadAsStringAsync());
         if (!json.RootElement.TryGetProperty("routes", out var routes) || routes.GetArrayLength() == 0) return Bad("Keine Straßenroute gefunden", 404);
         var list = routes.EnumerateArray().Select(x =>
         {
@@ -381,9 +385,14 @@ api.MapGet("/route", async (double fromLat, double fromLon, double toLat, double
             _ => list.OrderBy(x => x.durationMin).First()
         };
         return Results.Ok(new { selectedMode = mode ?? "fast", alternatives = list.Length,
-            chosen.distanceKm, chosen.durationMin, chosen.geometry, chosen.steps, note = "ETA ohne Live-Verkehr; Fun/Eco sind heuristisch. Navigationshinweise sind experimentell." });
+            chosen.distanceKm, chosen.durationMin, chosen.geometry, chosen.steps, provider = fetched.Provider,
+            note = "ETA ohne Live-Verkehr; Fun/Eco sind heuristisch. Navigationshinweise sind experimentell." });
     }
-    catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException) { return Bad("Routing momentan nicht verfügbar", 502); }
+    catch (Exception ex) when (ex is JsonException or InvalidOperationException or KeyNotFoundException)
+    {
+        app.Logger.LogWarning(ex, "Routing response could not be parsed");
+        return Bad("Routingdienst hat eine inkompatible Antwort geliefert. Bitte erneut versuchen.", 502);
+    }
 });
 api.MapGet("/elevation", async (string points, IHttpClientFactory factory) =>
 {

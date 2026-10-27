@@ -208,7 +208,7 @@ async function routeGo() {
     $("routeSummary").innerHTML='<b>↗ Route · '+esc(state.mode.toUpperCase())+'</b><div class="metrics"><span><strong>'+
       nice(result.distanceKm)+' km</strong><br>Entfernung</span><span><strong>'+Math.ceil(result.durationMin)+
       ' min</strong><br>Fahrtzeit</span><span><strong>'+arrival+'</strong><br>Ankunft</span></div>'+
-      '<span class="muted tiny">'+result.alternatives+' Alternative(n) · Kein Live-Verkehr</span>'+
+      '<span class="muted tiny">'+result.alternatives+' Alternative(n) · Kein Live-Verkehr · '+esc(result.provider||"Routing")+'</span>'+
       '<button id="startNavigation" class="primary wide nav-start">Navigation starten (Testversion)</button>';
     attach("startNavigation",startNavigation);
     setTab("map"); toast("Route berechnet");

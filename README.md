@@ -43,6 +43,38 @@ curl -fsS http://127.0.0.1:8090/api/health
 
 Das Docker-Volume `roadfun-app_roadfun_data` sowie die lokale `.env` bleiben dabei erhalten. **Nicht** `docker compose down -v` verwenden. Falls dein iPhone weiterhin die alte Version anzeigt, die Web-App schließen und neu öffnen oder einmal in Safari neu laden.
 
+## Routing-Fix: HTTP 502 / Ausfall des OSRM-Demoservers
+
+Wenn `/api/route` bislang `502 Bad Gateway` zurückgab, konnte das Backend seinen konfigurierten externen OSRM-Routingdienst nicht nutzen. Die aktualisierte Version probiert automatisch Valhalla als zweite Engine und cached erfolgreiche Antworten für 15 Minuten. Der aktive Anbieter steht nach einer Berechnung in der Routenübersicht (`OSRM`, `Valhalla` oder `(Cache)`). Ein Provider-HTTP-Fehler oder Timeout erzeugt jetzt eine aussagekräftigere Fehlermeldung.
+
+**Beim Update werden deine Benutzerkonten und Daten nicht gelöscht:**
+
+```bash
+cd ~/RoadFun-App
+git pull --ff-only
+docker compose up -d --build
+curl -fsS http://127.0.0.1:8090/api/health
+```
+
+Prüfe das Routing (Koordinaten-Beispiel aus Oberösterreich). Der Endpoint benötigt Anmeldung; wähle zur manuellen Prüfung am besten die Route direkt in der RoadFun-Oberfläche. Teste bei einem erneuten Fehler zunächst die Erreichbarkeit von **beiden** Routing-Anbietern aus demselben Container:
+
+```bash
+docker exec roadfun sh -c 'getent hosts router.project-osrm.org; getent hosts valhalla1.openstreetmap.de'
+docker logs roadfun --tail 100
+curl -I --max-time 10 https://router.project-osrm.org
+curl -I --max-time 10 https://valhalla1.openstreetmap.de/status
+```
+
+Hinweis: Host-`curl` allein beweist nicht, dass aus **Docker** heraus alle ausgehenden Verbindungen funktionieren. Zum Test im gleichen Netzwerk kann man einen temporären `curlimages/curl`-Container starten:
+
+```bash
+docker run --rm --network container:roadfun curlimages/curl:latest -I --max-time 10 https://valhalla1.openstreetmap.de/status
+```
+
+Wenn **beide** externen Dienste ausfallen, liegt das Problem wahrscheinlich bei DNS, TLS, Docker-Networking oder den öffentlichen Servern. Ein lokaler OSRM/Valhalla-Server über `ROADFUN_ROUTING_URL` ist langfristig zuverlässiger. Die zweite Engine lässt sich via `ROADFUN_ROUTING_FALLBACK_URL` konfigurieren (oder auf `disabled` setzen).
+
+OSRM und Valhalla sind **öffentliche Demo-Server**, keine garantierten Produktivdienste. Bitte sparsam verwenden (RoadFun drosselt Demo-Anfragen) und die entsprechenden Nutzungsrichtlinien einhalten: https://github-wiki-see.page/m/Project-OSRM/osrm-backend/wiki/Demo-server und https://valhalla.github.io/valhalla/start/introduction/. Die Abfrage überträgt Start- und Zielkoordinaten an den jeweiligen Dienst.
+
 ## Installation auf deinem Proxmox-Server (Debian-LXC oder Debian-VM)
 
 Am einfachsten in einer **eigenen Debian-VM oder einem für Docker geeigneten LXC** statt direkt auf dem Proxmox-Hypervisor. Docker Engine und das Compose-Plugin müssen installiert sein. Docker in einem Proxmox-LXC erfordert ggf. Nesting; für problemfreie Isolation lieber eine kleine Debian-VM verwenden.

@@ -9,6 +9,7 @@ services:
       ROADFUN_ADMIN_PASSWORD: ${ROADFUN_ADMIN_PASSWORD:?Set a strong admin password in .env}
       ROADFUN_INVITE_CODE: ${ROADFUN_INVITE_CODE:?Set a private invitation code in .env}
       ROADFUN_ROUTING_URL: ${ROADFUN_ROUTING_URL:-https://router.project-osrm.org}
+      ROADFUN_ROUTING_FALLBACK_URL: ${ROADFUN_ROUTING_FALLBACK_URL:-https://valhalla1.openstreetmap.de}
       ROADFUN_ELEVATION_URL: ${ROADFUN_ELEVATION_URL:-https://api.opentopodata.org/v1/srtm90m}
     ports:
       - "8090:8080"
