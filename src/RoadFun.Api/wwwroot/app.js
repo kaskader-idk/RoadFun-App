@@ -183,7 +183,7 @@ function renderRoute() {
     '<button class="select-point" id="routeStartBtn">Start: '+esc(state.routeStart ? coords(state.routeStart) : "Meine GPS-Position")+'</button>'+
     '<button class="select-point" id="routeEndBtn">Ziel: '+esc(coords(state.routeEnd))+'</button>'+
     '<label>Routenmodus<select id="routeMode"><option value="fast">Schnellste</option><option value="short">Kürzeste</option><option value="eco">Eco (Heuristik)</option><option value="fun">Fun (Kurven-Heuristik)</option></select></label>'+
-    '<div class="button-row"><button class="primary" id="routeGo">Route berechnen</button><button class="secondary" id="route3d">3D-Höhe</button></div>'+
+    '<div class="button-row"><button class="primary" id="routeGo">Route berechnen</button><button class="secondary" id="route3d">3D-Gelände</button></div>'+
     '<p class="help">Fun/Eco nutzen vorhandene Routing-Alternativen. Bei nur einer Route sind alle Modi identisch.</p>';
   $("routeMode").value = state.mode;
   attach("routeStartBtn",()=>pick("Startpunkt wählen",p=>state.routeStart=p));
