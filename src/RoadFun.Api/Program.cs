@@ -58,7 +58,24 @@ app.Use(async (ctx, next) =>
 });
 app.UseRateLimiter();
 app.UseDefaultFiles();
-app.UseStaticFiles();
+// HTML and service-worker scripts must be revalidated after deployment.
+// Otherwise an iOS Home Screen PWA may keep referencing an older 3D script.
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = context =>
+    {
+        var file = context.File.Name;
+        if (file.Equals("index.html", StringComparison.OrdinalIgnoreCase) ||
+            file.Equals("sw.js", StringComparison.OrdinalIgnoreCase))
+        {
+            context.Context.Response.Headers.CacheControl = "no-store";
+        }
+        else if (file.EndsWith(".js", StringComparison.OrdinalIgnoreCase))
+        {
+            context.Context.Response.Headers.CacheControl = "no-cache, must-revalidate";
+        }
+    }
+});
 app.UseStaticFiles(new StaticFileOptions { FileProvider = new PhysicalFileProvider(avatarDir), RequestPath = "/avatars" });
 app.Use(async (ctx, next) =>
 {
