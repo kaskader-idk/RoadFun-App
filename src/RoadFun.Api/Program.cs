@@ -14,13 +14,17 @@ builder.WebHost.UseWebRoot("wwwroot");
 builder.Services.AddRateLimiter(o =>
 {
     o.RejectionStatusCode = 429;
-    o.AddFixedWindowLimiter("auth", x =>
-    {
-        x.Window = TimeSpan.FromMinutes(1);
-        x.PermitLimit = 8;
-        x.QueueLimit = 0;
-        x.AutoReplenishment = true;
-    });
+    // Rate-limit per connecting IP rather than putting all friends in one bucket.
+    // Do not trust a client-supplied X-Forwarded-For header.
+    o.AddPolicy("auth", context => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            Window = TimeSpan.FromMinutes(1),
+            PermitLimit = 20,
+            QueueLimit = 0,
+            AutoReplenishment = true
+        }));
 });
 builder.Services.AddHttpClient("routing", c => c.Timeout = TimeSpan.FromSeconds(15));
 var dataDir = Environment.GetEnvironmentVariable("ROADFUN_DATA_DIR") ?? Path.Combine(builder.Environment.ContentRootPath, "data");
@@ -111,7 +115,7 @@ api.MapPatch("/me", (HttpContext ctx, ProfilePatch req) =>
         ("$car", req.Car), ("$age", age), ("$bio", req.Bio),
         ("$share", req.ShareLocation is null ? null : req.ShareLocation == true ? 1 : 0), ("$id", S(u, "id")));
     if (req.ShareLocation == false)
-        db.Exec("UPDATE users SET lat=NULL,lon=NULL,updated_at=NULL WHERE id=$id", ("$id", S(u, "id")));
+        db.Exec("UPDATE users SET lat=NULL,lon=NULL,accuracy=NULL,updated_at=NULL WHERE id=$id", ("$id", S(u, "id")));
     return Results.Ok(Public(db.One("SELECT * FROM users WHERE id=$id", ("$id", S(u, "id")))! , true));
 });
 api.MapPost("/me/avatar", async (HttpContext ctx) =>
@@ -315,8 +319,14 @@ api.MapGet("/runs", (HttpContext ctx) => Results.Ok(db.All(@"SELECT r.*,t.title 
     WHERE r.user_id=$u ORDER BY r.created_at DESC LIMIT 100", ("$u", S(U(ctx), "id")))));
 api.MapPost("/runs", (HttpContext ctx, NewRun req) =>
 {
-    var track = db.One("SELECT id FROM tracks WHERE id=$id", ("$id", req.TrackId));
-    if (track is null || !(req.DurationSeconds >= 1 && req.DurationSeconds <= 86400) ||
+    var uid = S(U(ctx), "id");
+    var track = db.One(@"SELECT t.id FROM tracks t WHERE t.id=$id
+        AND (t.owner_id=$uid OR (t.visibility='friends' AND EXISTS (
+            SELECT 1 FROM friendships f WHERE f.status='accepted'
+            AND ((f.from_id=$uid AND f.to_id=t.owner_id) OR (f.to_id=$uid AND f.from_id=t.owner_id)))))",
+        ("$id", req.TrackId), ("$uid", uid));
+    if (track is null) return Bad("Strecke nicht gefunden oder nicht freigegeben", 403);
+    if (!(req.DurationSeconds >= 1 && req.DurationSeconds <= 86400) ||
         !(req.DistanceKm >= 0 && req.DistanceKm <= 2000) ||
         !(req.MaxKmh >= 0 && req.MaxKmh <= 500) || !(req.AvgKmh >= 0 && req.AvgKmh <= 500) ||
         !(req.MaxG >= 0 && req.MaxG <= 20)) return Bad("Ungültige Messung");
@@ -333,7 +343,7 @@ api.MapGet("/route", async (double fromLat, double fromLon, double toLat, double
     var baseUrl = (Environment.GetEnvironmentVariable("ROADFUN_ROUTING_URL") ?? "https://router.project-osrm.org").TrimEnd('/');
     if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri) || (uri.Scheme != "https" && uri.Scheme != "http")) return Bad("Routing-Server ungültig", 503);
     var u = baseUrl + "/route/v1/driving/" + fromLon.ToString(CultureInfo.InvariantCulture) + "," + fromLat.ToString(CultureInfo.InvariantCulture) +
-        ";" + toLon.ToString(CultureInfo.InvariantCulture) + "," + toLat.ToString(CultureInfo.InvariantCulture) + "?overview=full&geometries=geojson&alternatives=true&steps=false";
+        ";" + toLon.ToString(CultureInfo.InvariantCulture) + "," + toLat.ToString(CultureInfo.InvariantCulture) + "?overview=full&geometries=geojson&alternatives=true&steps=true";
     try
     {
         var res = await factory.CreateClient("routing").GetAsync(u);
@@ -344,8 +354,24 @@ api.MapGet("/route", async (double fromLat, double fromLon, double toLat, double
         {
             var coords = x.GetProperty("geometry").GetProperty("coordinates").EnumerateArray()
                 .Select(c => new[] { c[0].GetDouble(), c[1].GetDouble() }).ToArray();
+            var steps = x.GetProperty("legs").EnumerateArray()
+                .SelectMany(leg => leg.GetProperty("steps").EnumerateArray())
+                .Select(step =>
+                {
+                    var maneuver = step.GetProperty("maneuver");
+                    var location = maneuver.GetProperty("location");
+                    var kind = maneuver.GetProperty("type").GetString() ?? "continue";
+                    var modifier = maneuver.TryGetProperty("modifier", out var m) ? m.GetString() : null;
+                    var road = step.TryGetProperty("name", out var n) ? n.GetString() : null;
+                    var exit = maneuver.TryGetProperty("exit", out var e) ? e.GetInt32() : (int?)null;
+                    return new {
+                        lat = location[1].GetDouble(), lon = location[0].GetDouble(),
+                        type = kind, modifier, road, exit,
+                        distanceMeters = step.GetProperty("distance").GetDouble()
+                    };
+                }).ToArray();
             return new { distanceKm = x.GetProperty("distance").GetDouble() / 1000, durationMin = x.GetProperty("duration").GetDouble() / 60,
-                corners = Geo.Curves(coords), geometry = coords };
+                corners = Geo.Curves(coords), geometry = coords, steps };
         }).ToArray();
         var chosen = mode switch
         {
@@ -355,7 +381,7 @@ api.MapGet("/route", async (double fromLat, double fromLon, double toLat, double
             _ => list.OrderBy(x => x.durationMin).First()
         };
         return Results.Ok(new { selectedMode = mode ?? "fast", alternatives = list.Length,
-            chosen.distanceKm, chosen.durationMin, chosen.geometry, note = "ETA ohne Live-Verkehr; Fun/Eco sind heuristisch." });
+            chosen.distanceKm, chosen.durationMin, chosen.geometry, chosen.steps, note = "ETA ohne Live-Verkehr; Fun/Eco sind heuristisch. Navigationshinweise sind experimentell." });
     }
     catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException) { return Bad("Routing momentan nicht verfügbar", 502); }
 });
