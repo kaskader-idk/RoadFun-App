@@ -1,0 +1,21 @@
+name: RoadFun build & smoke test
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  api-and-pwa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Validate frontend JavaScript
+        run: |
+          node --check src/RoadFun.Api/wwwroot/app.js
+          node --check src/RoadFun.Api/wwwroot/sw.js
+      - name: Restore and build
+        run: dotnet build src/RoadFun.Api/RoadFun.Api.csproj -c Release
+      - name: API smoke test
+        run: bash scripts/smoke-test.sh
