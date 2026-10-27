@@ -54,6 +54,21 @@ Erwartete Antwort: `{"status":"ok",...}`. Im lokalen Netzwerk ist die Seite dann
 
 > Wenn du das Admin-Passwort später in `.env` änderst, wird ein *bereits bestehender* Admin-Account nicht automatisch zurückgesetzt. Für den ersten Start vorab festlegen.
 
+### Wenn der Docker-Build mit einer alten C#-Version fehlschlägt
+
+Falls du zuvor den Fehler `CS0819` in `Program.cs` erhalten hast, lade zuerst den aktuellen Code:
+
+```bash
+cd ~/RoadFun-App
+git pull --ff-only
+docker compose build --progress=plain roadfun
+docker compose up -d
+docker compose ps
+curl -fsS http://127.0.0.1:8090/api/health
+```
+
+Der frühere `var x1 = ..., y1 = ...`-Compilerfehler wurde behoben. Wenn der Build dennoch fehlschlägt, die **erste neue Compilerfehlermeldung** einschließlich Dateiname und Zeilennummer prüfen. Bei einem Containerstartfehler: `docker compose logs --tail=100 roadfun`.
+
 ### 2. Über HTTPS bereitstellen (erforderlich für iPhone-GPS und PWA)
 
 Smartphone-GPS / Service Worker benötigen einen **sicheren HTTPS-Ursprung** (HTTP funktioniert für die Website, nicht zuverlässig für diese Funktionen). **Port 8090 niemals direkt ins Internet freigeben.**
