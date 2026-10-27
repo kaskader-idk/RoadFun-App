@@ -65,6 +65,8 @@ Wenn du bereits **Nginx Proxy Manager** auf deinem Netzwerk betreibst:
 3. Im SSL-Reiter ein **gültiges Zertifikat** auswählen/erstellen, **Force SSL** aktivieren. Für Let's Encrypt ist eine erreichbare gültige Domain nötig; `.home` erhält kein öffentliches Let's-Encrypt-Zertifikat.
 4. Per LAN, VPN oder einem sicher konfigurierten Tunnel auf die HTTPS-Domain zugreifen. Für private Nutzung kann eine interne CA funktionieren, wenn das iPhone dieser CA **ausdrücklich** vertraut.
 
+**Wenn du einen eigenen lokalen CA-Zertifikatsaussteller nutzt (z. B. \`roadfun.home\`):** Exportiere das **Root-CA-Zertifikat** (nur den öffentlichen Teil, **niemals den privaten Schlüssel**), übertrage es auf das iPhone und öffne es dort. Installiere das geladene Profil unter **Einstellungen → Allgemein → VPN & Geräteverwaltung**. Aktiviere anschließend unter **Einstellungen → Allgemein → Info → Zertifikatsvertrauenseinstellungen** das vollständige Vertrauen für genau diese CA. Die RoadFun-URL muss zum Hostnamen im Serverzertifikat passen. Du solltest nur deiner eigenen CA vertrauen. Dokumentation: https://support.apple.com/en-au/102390
+
 Deine Proxmox-IP, die RoadFun-IP und die Proxy-IP sind nicht zwangsläufig gleich. Verwende die tatsächliche IP des Gerätes/CT, wo Docker läuft.
 
 ### 3. Auf dem iPhone installieren – **ohne App Store, Sideloadly oder Apple-Developer-Konto**
