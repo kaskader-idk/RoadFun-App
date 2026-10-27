@@ -43,6 +43,11 @@ curl --silent --show-error --fail -H "$AUTH" "$BASE/route?fromLat=48.3&fromLon=1
 # Verify the fallback result is cached (provider identifies cache hit).
 curl --silent --show-error --fail -H "$AUTH" "$BASE/route?fromLat=48.3&fromLon=13.5&toLat=48.31&toLon=13.51&mode=eco" | \
     python3 -c 'import json,sys; r=json.load(sys.stdin); assert "Cache" in r["provider"]; assert len(r["geometry"])>1'
+# Address search rejects invalid or unauthenticated requests without contacting Photon.
+GEOCODE_BAD=$(curl -s -o /dev/null -w '%{http_code}' -H "$AUTH" "$BASE/geocode?q=ab")
+test "$GEOCODE_BAD" = "400"
+GEOCODE_UNAUTH=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/geocode?q=Hauptplatz")
+test "$GEOCODE_UNAUTH" = "401"
 # Invalid / oversized vegetation bounding boxes must be rejected without contacting Overpass.
 VEGETATION_STATUS=$(curl -s -o /dev/null -w '%{http_code}' -H "$AUTH" \
   "$BASE/terrain/vegetation?south=48.1&west=13.2&north=48.3&east=13.4")
