@@ -75,6 +75,44 @@ Wenn **beide** externen Dienste ausfallen, liegt das Problem wahrscheinlich bei 
 
 OSRM und Valhalla sind **öffentliche Demo-Server**, keine garantierten Produktivdienste. Bitte sparsam verwenden (RoadFun drosselt Demo-Anfragen) und die entsprechenden Nutzungsrichtlinien einhalten: https://github-wiki-see.page/m/Project-OSRM/osrm-backend/wiki/Demo-server und https://valhalla.github.io/valhalla/start/introduction/. Die Abfrage überträgt Start- und Zielkoordinaten an den jeweiligen Dienst.
 
+## Neu: Lokales High-Speed-Routing und adressbasierte Navigation
+
+**Routing-Algorithmus:** Optional wird RoadFun jetzt von einem lokalen OSRM-Server versorgt, der **Contraction Hierarchies (CH)** verwendet. CH beschleunigt die Route selbst durch eine einmalige Aufbereitung des Straßengraphen. Das ist bei statischen Straßengewichten sehr schnell; für sehr häufig veränderte Verkehrsdaten ist OSRM-MLD besser geeignet. RoadFun unterstützt derzeit keine Echtzeit-Verkehrsdaten und bietet bei Eco/Fun eine heuristische Wahl aus Routing-Alternativen, **keinen eigenständigen optimierten Eco-/Kurven-Algorithmus**.
+
+**Lokal auf Proxmox starten (optional):** Der Stand der App funktioniert weiterhin ohne lokalen OSRM mit den bisherigen öffentlichen Providern. Ein lokaler Routingserver braucht freien Speicherplatz, viel RAM während des Imports und eine OpenStreetMap-PBF-Datei. Das Geofabrik-Extrakt `austria-latest.osm.pbf` wird beim ersten Aufruf heruntergeladen.
+
+```bash
+cd ~/RoadFun-App
+bash scripts/setup-local-routing.sh
+```
+
+Auf einem Host mit wenig RAM (z. B. 8 GB) kann die CH-Aufbereitung für ganz Österreich fehlschlagen oder vom OOM-Killer beendet werden. Dann einen **kleineren PBF-Ausschnitt für die Region** bereitstellen und das Skript mit `ROADFUN_PBF_FILE=/absoluter/pfad/region.osm.pbf bash scripts/setup-local-routing.sh` aufrufen. Solche Ausschnitte decken nur das gewählte Gebiet ab, inklusive eventueller Grenzen. Die vorbereiteten Graphdateien liegen unter `routing-data/` und werden nicht auf GitHub hochgeladen.
+
+Nach erfolgreicher Vorbereitung in `.env` eintragen:
+```env
+ROADFUN_ROUTING_URL=http://osrm:5000
+```
+
+Danach **beide Container** hochfahren:
+
+```bash
+docker compose --profile local-routing up -d --build
+docker compose ps
+docker compose logs --tail 50 osrm
+```
+
+Der OSRM-Port 5000 wird nur **intern im Docker-Netz** freigegeben. Die Straßenroute benötigt nach der Aufbereitung **keine externe Routing-API**; bei Nichtverfügbarkeit kann RoadFun weiter den in `.env` angegebenen Valhalla-Dienst als Fallback verwenden. Die Geocodierung ist davon unabhängig.
+
+**Google-Maps-artige Routeneingabe:** Über **Route** erscheint jetzt links oben ein schwebendes Fenster auf der Karte. Start und Ziel können per Adresse, `Breitengrad, Längengrad` oder über die Kartennadel gewählt werden. Adressen werden über Photon gesucht, von RoadFun auf fünf Ergebnisse und auf sparsame Anfragen begrenzt. Bei einem eigenen Photon-Server kann `ROADFUN_GEOCODER_URL` in `.env` gesetzt werden. Der öffentliche Photon-Demoserver kann ausfallen oder Anfragen drosseln; Kartenauswahl/Koordinaten funktionieren unabhängig davon.
+
+## Neu: 3D-Gebäude und sichtbarere Wälder
+
+In der 3D-Ansicht gibt es einen unabhängigen **Häuser**-Schalter. Die Modelle werden als einfache Gebäudekörper aus kartierten OSM-Grundrissen extrudiert; `height` oder `building:levels` steuern die Höhe, andernfalls wird die Höhe geschätzt. Es gibt keine echten Fassaden, präzise Dachformen oder LIDAR-Gebäudedaten. Pro Ansicht werden bis zu 180 Gebäude gebaut.
+
+Die Baumabfrage kann nun einen **kleinen, begrenzten Ausschnitt um die Streckenmitte** auch bei langen Routen laden; außerdem wurde ein zweiter Overpass-Dienst als Fallback ergänzt und das Netzwerktimeout erhöht. Bäume erscheinen nur dort, wo OSM `natural=tree` oder Waldflächen kartiert hat; Waldflächenbäume sind **synthetisch verteilte** Modelle, keine wirklich vermessenen Baumstandorte. Das Geländeraster wurde von rund 32 auf bis zu **60 Unterteilungen pro Kachel** verfeinert; das bietet glattere Übergänge, ist aber kein höher aufgelöstes Höhendataset.
+
+Quellen: [OSRM-Anleitung](https://project-osrm.org/docs/v26.4.0/tools), [Austria OSM PBF](https://download.geofabrik.de/europe/austria.html), [Photon](https://github.com/komoot/photon), [Overpass](https://wiki.openstreetmap.org/wiki/Overpass_API). Bei Gebäude-/Waldfragen sendet der Server nur den Kartenausschnitt an den OSM-Provider. Die 3D-Darstellung benötigt weiterhin Internet für Satellitenbilder/Höhendaten.
+
 ## Neu: Realitätsnäheres 3D-Gelände, Satellit und Vegetation
 
 Im **3D-Höhen**-Fenster wird die berechnete Route auf ein echtes Höhenmodell drapiert statt frei im Raum angezeigt. Umgebendes Gelände wird aus [Mapzen Terrain Tiles / AWS Open Data](https://registry.opendata.aws/terrain-tiles/) erzeugt (Terrarium-RGB dekodiert als Höhe in Metern). [Esri World Imagery](https://www.esri.com/en-us/arcgis/products/arcgis-online/resources) kann als Satellitentextur darüber angezeigt werden. Die Straße bleibt die geglättete OSRM/Valhalla-Geometrie.
