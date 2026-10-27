@@ -14,7 +14,9 @@ jobs:
       - name: Validate frontend JavaScript
         run: |
           node --check src/RoadFun.Api/wwwroot/app.js
+          node --check src/RoadFun.Api/wwwroot/navigation.js
           node --check src/RoadFun.Api/wwwroot/sw.js
+          python3 -m py_compile scripts/mock-routing.py
       - name: Restore and build
         run: dotnet build src/RoadFun.Api/RoadFun.Api.csproj -c Release
       - name: API smoke test
