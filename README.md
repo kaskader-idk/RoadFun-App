@@ -13,6 +13,7 @@
 | Meldungen: Polizei, mobile/feste Blitzer, Stau, Gefahr, Blickrichtung | ✅ |
 | Car Meets erstellen, ansehen, zusagen, Ziel zur Route übernehmen | ✅ |
 | Routenwahl schnell / kurz / eco / fun, KM und ETA | 🟡 OSRM-Alternativen; eco/fun nur Heuristiken, **keine** Live-Verkehrsdaten |
+| Experimentelle GPS-Manöver-Navigation mit optionaler Sprache | 🟡 Neu: Abbiegungen von OSRM, Anzeige und Sprachausgabe im Vordergrund; kein Re-Routing |
 | Strecken auf Karte anlegen, GPS-Auto-Timer, Distanz, max/Ø km/h, Längs-g | 🟡 GPS-basiert, nicht verifiziert, nur abgesperrte Strecken |
 | Drehbare 3D-Routen-Höhenansicht, Raster ein/aus | 🟡 Höhenlinie statt vollwertigem 3D-Terrain oder Gebäuden |
 | Admin-Fahrerkarte | ✅ Nur aktive, ausdrücklich freigegebene Standorte |
@@ -20,6 +21,27 @@
 | Microsoft SQL Server .mdf | ❌ Stattdessen SQLite (Linux-tauglich, siehe unten) |
 
 Nicht als vollständig fertig oder sicher für öffentlichen Betrieb betrachten: siehe [DARFNICHT.md](DARFNICHT.md).
+
+## Neu: Navigations- und Stabilitätsupdate (Oktober 2026)
+
+- OSRM-Routen liefern nun Abbiegehinweise einschließlich Manöverposition, Richtung und Straßenname.
+- Nach dem Berechnen einer Route **Navigation starten (Testversion)** wählen. Die Karte folgt der GPS-Position, zeigt den nächsten Richtungswechsel sowie die ungefähre **Luftlinie** dorthin. Sprachhinweise kannst du vor der Fahrt freiwillig einschalten.
+- **Wichtige Grenzen:** nur GPS bei geöffneter App, keine automatische Neuberechnung bei Abweichung, keine verlässliche Meterangabe entlang der Straße, kein Live-Verkehr. Kein Ersatz für eine vollwertige Navigation. **Vor Fahrtbeginn einstellen, nicht am Steuer bedienen.**
+- Sicherheitskorrektur: Private Strecken anderer Nutzer können nicht mehr für eigene Messungen referenziert werden. Positionsdaten werden beim Abschalten der Freigabe vollständig geleert.
+- Login-Limits sind nach Verbindungs-IP statt appweit gruppiert. Hinter einem gemeinsamen Reverse Proxy können sich Nutzer das Limit dennoch teilen.
+- Erweiterter API-Smoke-Test inkl. simuliertem OSRM, privaten Strecken und Standortfreigaben.
+
+### Update auf bestehendem Server (Daten bleiben erhalten)
+
+```bash
+cd ~/RoadFun-App
+git pull --ff-only
+docker compose up -d --build
+docker compose ps
+curl -fsS http://127.0.0.1:8090/api/health
+```
+
+Das Docker-Volume `roadfun-app_roadfun_data` sowie die lokale `.env` bleiben dabei erhalten. **Nicht** `docker compose down -v` verwenden. Falls dein iPhone weiterhin die alte Version anzeigt, die Web-App schließen und neu öffnen oder einmal in Safari neu laden.
 
 ## Installation auf deinem Proxmox-Server (Debian-LXC oder Debian-VM)
 
