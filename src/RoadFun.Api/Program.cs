@@ -77,7 +77,7 @@ api.MapPost("/auth/register", (Register req) =>
 {
     var invite = Environment.GetEnvironmentVariable("ROADFUN_INVITE_CODE");
     if (string.IsNullOrEmpty(invite) || !Auth.Equal(invite, req.InviteCode ?? "")) return Bad("Ungültiger Einladungscode", 403);
-    if (!Regex.IsMatch(req.Username ?? "", "^[a-zA-Z0-9_]{3,24}$") || req.Password?.Length < 10 || string.Equals(req.Username, "Admin", StringComparison.OrdinalIgnoreCase)) return Bad("Name: 3–24 Zeichen (a-z, 0-9, _), nicht Admin; Passwort: mindestens 10 Zeichen");
+    if (!Regex.IsMatch(req.Username ?? "", "^[a-zA-Z0-9_]{3,24}$") || string.IsNullOrEmpty(req.Password) || req.Password.Length < 10 || string.Equals(req.Username, "Admin", StringComparison.OrdinalIgnoreCase)) return Bad("Name: 3–24 Zeichen (a-z, 0-9, _), nicht Admin; Passwort: mindestens 10 Zeichen");
     if (db.One("SELECT id FROM users WHERE username=$n", ("$n", req.Username)) is not null) return Bad("Name bereits vergeben", 409);
     var id = Guid.NewGuid().ToString("N");
     try { db.Exec("INSERT INTO users(id,username,pass_hash,code) VALUES($id,$n,$p,$c)", ("$id", id), ("$n", req.Username), ("$p", Auth.Hash(req.Password)), ("$c", Auth.Code())); }
@@ -528,7 +528,7 @@ static class Geo
         for(var i=2; i<pts.Length; i+=Math.Max(1,pts.Length/200))
         {
             var a=pts[i-2];var b=pts[i-1];var c=pts[i];
-            var x1=b[0]-a[0], y1=b[1]-a[1], x2=c[0]-b[0], y2=c[1]-b[1];
+            double x1=b[0]-a[0], y1=b[1]-a[1], x2=c[0]-b[0], y2=c[1]-b[1];
             var mag=Math.Sqrt((x1*x1+y1*y1)*(x2*x2+y2*y2));
             if(mag>1e-12) result+=Math.Acos(Math.Clamp((x1*x2+y1*y2)/mag,-1,1));
         }
