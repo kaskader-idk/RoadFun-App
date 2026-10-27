@@ -20,5 +20,20 @@ services:
     cap_drop:
       - ALL
 
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend:v5.27.1
+    container_name: roadfun-osrm
+    profiles: ["local-routing"]
+    restart: unless-stopped
+    command: ["osrm-routed", "--algorithm", "ch", "--port", "5000", "/data/austria-latest.osrm"]
+    volumes:
+      - ./routing-data:/data:ro
+    expose:
+      - "5000"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
 volumes:
   roadfun_data:
