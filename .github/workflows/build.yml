@@ -17,8 +17,9 @@ jobs:
           node --check src/RoadFun.Api/wwwroot/navigation.js
           node --check src/RoadFun.Api/wwwroot/roadfun-geometry.js
           node --check src/RoadFun.Api/wwwroot/terrain3d.js
+          node --check src/RoadFun.Api/wwwroot/terrain-map.js
           node --check src/RoadFun.Api/wwwroot/sw.js
-          node --test tests/geometry3d.test.cjs
+          node --test tests/geometry3d.test.cjs tests/terrain-map.test.cjs
           python3 -m py_compile scripts/mock-routing.py
       - name: Restore and build
         run: dotnet build src/RoadFun.Api/RoadFun.Api.csproj -c Release

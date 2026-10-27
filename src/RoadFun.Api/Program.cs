@@ -337,6 +337,22 @@ api.MapPost("/runs", (HttpContext ctx, NewRun req) =>
     return Results.Ok(new { success = true, verified = false });
 });
 
+api.MapGet("/terrain/vegetation", async (double south, double west, double north, double east,
+    IHttpClientFactory factory, CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var json = await VegetationData.Query(south, west, north, east, factory, cancellationToken);
+        return Results.Content(json, "application/json; charset=utf-8");
+    }
+    catch (ArgumentException ex) { return Bad(ex.Message); }
+    catch (Exception ex) when (ex is HttpRequestException or TimeoutException or
+        TaskCanceledException or InvalidOperationException or System.Text.Json.JsonException)
+    {
+        app.Logger.LogWarning(ex, "Vegetation provider unavailable");
+        return Bad("Baumdaten momentan nicht verfügbar; Gelände und Satellit funktionieren weiterhin.", 503);
+    }
+});
 api.MapGet("/route", async (double fromLat, double fromLon, double toLat, double toLon, string? mode,
     IHttpClientFactory factory, CancellationToken cancellation) =>
 {
