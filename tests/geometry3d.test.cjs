@@ -29,8 +29,8 @@ function approx(value, expected, eps=1e-5) {
   const s = geom.elevationLocations(route,3);
   approx(s[1][0],13.505,.000001);
   const g = geom.routeSceneData(route,[400,500,600],3);
-  assert.ok(g.vertices[1].elevation>409 && g.vertices[1].elevation<412,
-    `elevation at 10% distance should be near 410, received ${g.vertices[1].elevation}`);
+  assert.ok(g.vertices[1].elevation>419 && g.vertices[1].elevation<421,
+    `elevation at 10% distance should be near 420 for 3 samples, received ${g.vertices[1].elevation}`);
 }
 // All bends in the actual OSRM geometry are retained as mesh anchors.
 {
