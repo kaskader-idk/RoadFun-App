@@ -12,7 +12,7 @@
 | Karte, GPS-Marker, Freunde mit freiwilliger Freigabe | ✅ |
 | Meldungen: Polizei, mobile/feste Blitzer, Stau, Gefahr, Blickrichtung | ✅ |
 | Car Meets erstellen, ansehen, zusagen, Ziel zur Route übernehmen | ✅ |
-| Routenwahl schnell / kurz / eco / fun, KM und ETA | 🟡 OSRM-Alternativen; eco/fun nur Heuristiken, **keine** Live-Verkehrsdaten |
+| Routenwahl schnell / kurz / eco / fun, KM und ETA | 🟡 Browserlokaler A*-Graph; Region muss vorbereitet sein; Eco/Fun nur Heuristiken |
 | Experimentelle GPS-Manöver-Navigation mit optionaler Sprache | 🟡 Neu: Abbiegungen von OSRM, Anzeige und Sprachausgabe im Vordergrund; kein Re-Routing |
 | Strecken auf Karte anlegen, GPS-Auto-Timer, Distanz, max/Ø km/h, Längs-g | 🟡 GPS-basiert, nicht verifiziert, nur abgesperrte Strecken |
 | 3D-Gelände entlang der Route, Satellitenbilder, OSM-Bäume und 5 Ebenen-Schalter | 🟡 Mapzen DEM + Esri World Imagery + OSM (Bäume in Wäldern nur modellhaft, keine Gebäude) |
@@ -24,7 +24,7 @@ Nicht als vollständig fertig oder sicher für öffentlichen Betrieb betrachten:
 
 ## Neu: Navigations- und Stabilitätsupdate (Oktober 2026)
 
-- OSRM-Routen liefern nun Abbiegehinweise einschließlich Manöverposition, Richtung und Straßenname.
+- Lokale Routen erzeugen vereinfachte Abbiegehinweise aus der Geometrie; Straßennamen und Abbiegeregeln können fehlen.
 - Nach dem Berechnen einer Route **Navigation starten (Testversion)** wählen. Die Karte folgt der GPS-Position, zeigt den nächsten Richtungswechsel sowie die ungefähre **Luftlinie** dorthin. Sprachhinweise kannst du vor der Fahrt freiwillig einschalten.
 - **Wichtige Grenzen:** nur GPS bei geöffneter App, keine automatische Neuberechnung bei Abweichung, keine verlässliche Meterangabe entlang der Straße, kein Live-Verkehr. Kein Ersatz für eine vollwertige Navigation. **Vor Fahrtbeginn einstellen, nicht am Steuer bedienen.**
 - Sicherheitskorrektur: Private Strecken anderer Nutzer können nicht mehr für eigene Messungen referenziert werden. Positionsdaten werden beim Abschalten der Freigabe vollständig geleert.
@@ -43,67 +43,42 @@ curl -fsS http://127.0.0.1:8090/api/health
 
 Das Docker-Volume `roadfun-app_roadfun_data` sowie die lokale `.env` bleiben dabei erhalten. **Nicht** `docker compose down -v` verwenden. Falls dein iPhone weiterhin die alte Version anzeigt, die Web-App schließen und neu öffnen oder einmal in Safari neu laden.
 
-## Routing-Fix: HTTP 502 / Ausfall des OSRM-Demoservers
+## Browser-lokales Routing (aktuell, ohne OSRM)
 
-Wenn `/api/route` bislang `502 Bad Gateway` zurückgab, konnte das Backend seinen konfigurierten externen OSRM-Routingdienst nicht nutzen. Die aktualisierte Version probiert automatisch Valhalla als zweite Engine und cached erfolgreiche Antworten für 15 Minuten. Der aktive Anbieter steht nach einer Berechnung in der Routenübersicht (`OSRM`, `Valhalla` oder `(Cache)`). Ein Provider-HTTP-Fehler oder Timeout erzeugt jetzt eine aussagekräftigere Fehlermeldung.
+**Die Routensuche läuft jetzt ausschließlich auf dem Endgerät.** RoadFun verwendet A* auf einem vorbereiteten gerichteten OpenStreetMap-Straßengraphen in einem Web Worker. Es gibt keinen OSRM-Container, keinen serverseitigen Routing-Endpunkt und keine Routing-Anfragen an öffentliche Server mehr.
 
-**Beim Update werden deine Benutzerkonten und Daten nicht gelöscht:**
+**Einmalige Vorbereitung:** Der RoadFun-Server stellt nur eine kompakte OSM-Kartendatei als statische Datei bereit. Die Berechnung selbst findet auf deinem iPhone/PC statt. Die Karte muss vor dem ersten Start für eine Region erstellt werden. Das Standardgebiet umfasst den Großraum Ried im Innkreis; für andere Gegenden ändere die Bounding-Box. Kartenupdates musst du gelegentlich neu vorbereiten.
+
+### Voraussetzungen auf deinem Portainer-LXC (einmalig)
 
 ```bash
+apt update
+apt install -y osmium-tool python3-venv python3-pip curl
 cd ~/RoadFun-App
-git pull --ff-only
+bash scripts/build-browser-map.sh
 docker compose up -d --build
-curl -fsS http://127.0.0.1:8090/api/health
+docker compose ps
 ```
 
-Prüfe das Routing (Koordinaten-Beispiel aus Oberösterreich). Der Endpoint benötigt Anmeldung; wähle zur manuellen Prüfung am besten die Route direkt in der RoadFun-Oberfläche. Teste bei einem erneuten Fehler zunächst die Erreichbarkeit von **beiden** Routing-Anbietern aus demselben Container:
+Das Skript lädt ggf. `austria-latest.osm.pbf` von Geofabrik herunter, schneidet **nur die eingestellte Region** aus und erstellt `browser-map-data/region.json`. Für das Preprocessing nutzt es Python/PyOsmium. Die Datei wird als Read-only-Volume nach `/app/wwwroot/routing-data` eingebunden und beim Routenplanen vom Gerät heruntergeladen. Zum bloßen Aktualisieren der Straßenkarte genügt es, das Skript erneut auszuführen und die RoadFun-Seite neu zu öffnen; danach ggf. PWA-Daten/Cache aktualisieren.
 
-```bash
-docker exec roadfun sh -c 'getent hosts router.project-osrm.org; getent hosts valhalla1.openstreetmap.de'
-docker logs roadfun --tail 100
-curl -I --max-time 10 https://router.project-osrm.org
-curl -I --max-time 10 https://valhalla1.openstreetmap.de/status
-```
-
-Hinweis: Host-`curl` allein beweist nicht, dass aus **Docker** heraus alle ausgehenden Verbindungen funktionieren. Zum Test im gleichen Netzwerk kann man einen temporären `curlimages/curl`-Container starten:
-
-```bash
-docker run --rm --network container:roadfun curlimages/curl:latest -I --max-time 10 https://valhalla1.openstreetmap.de/status
-```
-
-Wenn **beide** externen Dienste ausfallen, liegt das Problem wahrscheinlich bei DNS, TLS, Docker-Networking oder den öffentlichen Servern. Ein lokaler OSRM/Valhalla-Server über `ROADFUN_ROUTING_URL` ist langfristig zuverlässiger. Die zweite Engine lässt sich via `ROADFUN_ROUTING_FALLBACK_URL` konfigurieren (oder auf `disabled` setzen).
-
-OSRM und Valhalla sind **öffentliche Demo-Server**, keine garantierten Produktivdienste. Bitte sparsam verwenden (RoadFun drosselt Demo-Anfragen) und die entsprechenden Nutzungsrichtlinien einhalten: https://github-wiki-see.page/m/Project-OSRM/osrm-backend/wiki/Demo-server und https://valhalla.github.io/valhalla/start/introduction/. Die Abfrage überträgt Start- und Zielkoordinaten an den jeweiligen Dienst.
-
-## Neu: Lokales High-Speed-Routing und adressbasierte Navigation
-
-**Routing-Algorithmus:** Optional wird RoadFun jetzt von einem lokalen OSRM-Server versorgt, der **Contraction Hierarchies (CH)** verwendet. CH beschleunigt die Route selbst durch eine einmalige Aufbereitung des Straßengraphen. Das ist bei statischen Straßengewichten sehr schnell; für sehr häufig veränderte Verkehrsdaten ist OSRM-MLD besser geeignet. RoadFun unterstützt derzeit keine Echtzeit-Verkehrsdaten und bietet bei Eco/Fun eine heuristische Wahl aus Routing-Alternativen, **keinen eigenständigen optimierten Eco-/Kurven-Algorithmus**.
-
-**Lokal auf Proxmox starten (optional):** Der Stand der App funktioniert weiterhin ohne lokalen OSRM mit den bisherigen öffentlichen Providern. Ein lokaler Routingserver braucht freien Speicherplatz, viel RAM während des Imports und eine OpenStreetMap-PBF-Datei. Das Geofabrik-Extrakt `austria-latest.osm.pbf` wird beim ersten Aufruf heruntergeladen.
+### Eigene Region vorbereiten
 
 ```bash
 cd ~/RoadFun-App
-bash scripts/setup-local-routing.sh
+ROADFUN_BBOX="13.20,48.00,13.85,48.50" bash scripts/build-browser-map.sh
 ```
 
-Auf einem Host mit wenig RAM (z. B. 8 GB) kann die CH-Aufbereitung für ganz Österreich fehlschlagen oder vom OOM-Killer beendet werden. Dann einen **kleineren PBF-Ausschnitt für die Region** bereitstellen und das Skript mit `ROADFUN_PBF_FILE=/absoluter/pfad/region.osm.pbf bash scripts/setup-local-routing.sh` aufrufen. Solche Ausschnitte decken nur das gewählte Gebiet ab, inklusive eventueller Grenzen. Die vorbereiteten Graphdateien liegen unter `routing-data/` und werden nicht auf GitHub hochgeladen.
+Reihenfolge der Koordinaten: **westliche Länge, südliche Breite, östliche Länge, nördliche Breite**. Wähle einen kleinen Ausschnitt, weil alle Endgeräte die gesamte Datei laden. Routen außerhalb der Region sind nicht möglich. Für weite Fahrten benötigt RoadFun künftig teilbare Regionen beziehungsweise ein größeres Straßennetz.
 
-Nach erfolgreicher Vorbereitung in `.env` eintragen:
-```env
-ROADFUN_ROUTING_URL=http://osrm:5000
-```
+**Verhalten:** Im Menü Route zeigt RoadFun nach dem Download die Anzahl der Straßenknoten an. Ein sauberer Fehler erscheint, falls die Karte fehlt oder der Zielort nicht in der Region liegt. Kartenauswahl und Koordinateneingabe funktionieren unabhängig von externen Diensten; **die optionale Adresssuche verwendet weiterhin Photon**. Auf dem Gerät wird ein gerichteter Graph mit Einbahnstraßen und einem näherungsweisen Geschwindigkeitsprofil verarbeitet. A* minimiert je nach Auswahl Fahrzeit beziehungsweise Distanz. Eco/Landstraße sind nur einfache Gewichtungsheuristiken. Es fehlen wichtige Verkehrsregeln wie Abbiegeverbote, Sperrzeiten, Fahrzeugbeschränkungen und Verkehrsaktualität: **nicht als Ersatz für sicherheitskritische Fahrzeugnavigation verwenden**. OSM: © OpenStreetMap-Mitwirkende, ODbL.
 
-Danach **beide Container** hochfahren:
+### Technischer Aufbau
 
-```bash
-docker compose --profile local-routing up -d --build
-docker compose ps
-docker compose logs --tail 50 osrm
-```
-
-Der OSRM-Port 5000 wird nur **intern im Docker-Netz** freigegeben. Die Straßenroute benötigt nach der Aufbereitung **keine externe Routing-API**; bei Nichtverfügbarkeit kann RoadFun weiter den in `.env` angegebenen Valhalla-Dienst als Fallback verwenden. Die Geocodierung ist davon unabhängig.
-
-**Google-Maps-artige Routeneingabe:** Über **Route** erscheint jetzt links oben ein schwebendes Fenster auf der Karte. Start und Ziel können per Adresse, `Breitengrad, Längengrad` oder über die Kartennadel gewählt werden. Adressen werden über Photon gesucht, von RoadFun auf fünf Ergebnisse und auf sparsame Anfragen begrenzt. Bei einem eigenen Photon-Server kann `ROADFUN_GEOCODER_URL` in `.env` gesetzt werden. Der öffentliche Photon-Demoserver kann ausfallen oder Anfragen drosseln; Kartenauswahl/Koordinaten funktionieren unabhängig davon.
+- **Server/Proxmox:** PBF zu JSON/CSR-Graphen vorbereiten und als statische Datei ausliefern; niemals Server-Routing.
+- **iPhone/PC:** Straßengraph einmal laden und als TypedArrays plus räumlichem Index im Web Worker vorhalten; A* mit binärem Heap berechnet jede Route unmittelbar lokal.
+- **Performance:** Kleinere Regionen laden und suchen schneller. Die exakte Laufzeit hängt von Knotenanzahl und Gerät ab. Die App zeigt die reine Suchzeit in Millisekunden.
+- **Keine Internetverbindung nötig für erneute Routenberechnungen**, sobald die Straßendaten im Worker und die PWA-Ressourcen geladen sind; für neue Karten, Adresssuche, Satellitenbilder und Community-Funktionen können weiterhin Datenverbindungen erforderlich sein.
 
 ## Neu: 3D-Gebäude und sichtbarere Wälder
 
