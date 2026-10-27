@@ -16,6 +16,7 @@ services:
       - "8090:8080"
     volumes:
       - roadfun_data:/data
+      - ./browser-map-data:/app/wwwroot/routing-data:ro
     security_opt:
       - no-new-privileges:true
     cap_drop:
