@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="/icon.svg">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous">
-<link rel="stylesheet" href="/style.css?v=5">
+<link rel="stylesheet" href="/style.css?v=6">
 </head><body>
 <header><div class="brand"><span class="logo">R<span>F</span></span><div>Road<span class="accent">Fun</span><small>DRIVE · DISCOVER · CONNECT</small></div></div>
 <div class="header-actions"><span id="gpsStatus" class="pill">GPS aus</span><button id="openProfile" class="avatar-button" title="Profil">?</button></div></header>
@@ -20,6 +20,10 @@
  <main id="mapArea"><div id="map"></div><div class="map-tools">
   <button id="centerGps" title="Zu meiner Position">◎</button><button id="refreshMap" title="Aktualisieren">↻</button>
  </div><div id="mapHint" class="map-hint" hidden></div>
+ <div id="routePlanner" class="route-planner" hidden>
+   <div class="route-planner-head"><strong>↗ Route planen</strong><button id="closeRoutePlanner" class="icon-button" aria-label="Routenplanung schließen" type="button">✕</button></div>
+   <div id="routePlannerBody"></div>
+ </div>
  <div id="routeSummary" class="floating-card" hidden></div>
  <div id="navCard" class="nav-card" role="status" aria-live="polite" hidden>
   <div class="nav-eyebrow">⌖ GPS-NAVIGATION · TESTVERSION</div>
@@ -68,6 +72,6 @@
 <script defer src="/roadfun-geometry.js?v=4"></script>
 <script defer src="/terrain-map.js?v=5"></script>
 <script defer src="/terrain3d.js?v=5"></script>
-<script defer src="/app.js?v=5"></script>
+<script defer src="/app.js?v=6"></script>
 <script defer src="/navigation.js?v=2"></script>
 </body></html>
