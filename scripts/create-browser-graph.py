@@ -10,6 +10,7 @@ Usage: python3 scripts/create-browser-graph.py INPUT.osm.pbf OUTPUT.json
 import argparse
 import json
 import math
+import time
 from collections import defaultdict, deque
 from pathlib import Path
 
@@ -52,15 +53,55 @@ def speed_kmh(tags, default):
     return default
 
 
-class Reader(osmium.SimpleHandler):
-    def __init__(self):
+class NodeCollector(osmium.SimpleHandler):
+    """Stream the source PBF once, retaining only coordinates near the chosen box.
+
+    This intentionally avoids osmium extract's potentially huge max-node-ID
+    bitsets, and avoids storing all of Austria's locations in RAM.
+    """
+
+    def __init__(self, bbox, padding=0.02):
         super().__init__()
+        west, south, east, north = bbox
+        self.west = max(-180, west - padding)
+        self.east = min(180, east + padding)
+        self.south = max(-90, south - padding)
+        self.north = min(90, north + padding)
+        self.nodes = {}
+        self.scanned = 0
+        self.started = time.monotonic()
+
+    def node(self, node):
+        self.scanned += 1
+        if self.scanned % 1000000 == 0:
+            print(f"  [1/2] OSM-Knoten gelesen: {self.scanned:,}; "
+                  f"im Ausschnitt: {len(self.nodes):,}; "
+                  f"Laufzeit: {time.monotonic() - self.started:.0f}s", flush=True)
+        if not node.location.valid():
+            return
+        lat = node.location.lat
+        lon = node.location.lon
+        if self.west <= lon <= self.east and self.south <= lat <= self.north:
+            self.nodes[int(node.id)] = (float(lat), float(lon))
+
+
+class Reader(osmium.SimpleHandler):
+    def __init__(self, node_positions=None):
+        super().__init__()
+        self.node_positions = node_positions
         self.nodes = {}
         self.edges = []
         self.rejected = 0
         self.ways = 0
+        self.scanned = 0
+        self.started = time.monotonic()
 
     def way(self, w):
+        self.scanned += 1
+        if self.scanned % 250000 == 0:
+            print(f"  [2/2] OSM-Wege geprüft: {self.scanned:,}; "
+                  f"befahrbare Wege im Ausschnitt: {self.ways:,}; "
+                  f"Laufzeit: {time.monotonic() - self.started:.0f}s", flush=True)
         tags = w.tags
         highway = tags.get("highway", "")
         if highway not in ALLOWED:
@@ -82,11 +123,23 @@ class Reader(osmium.SimpleHandler):
         reverse = direction not in {"yes", "1", "true"} 
         coords = []
         for node in w.nodes:
-            if not node.location.valid():
-                self.rejected += 1
-                return
-            coords.append((int(node.ref), (float(node.location.lat), float(node.location.lon))))
-        for (start, startpos), (end, endpos) in zip(coords, coords[1:]):
+            ident = int(node.ref)
+            if self.node_positions is not None:
+                position = self.node_positions.get(ident)
+                # A node outside the region is not needed. Skip only the
+                # crossing segment, never discard the whole road/way.
+                coords.append((ident, position) if position is not None else None)
+            else:
+                if not node.location.valid():
+                    self.rejected += 1
+                    coords.append(None)
+                else:
+                    coords.append((ident, (float(node.location.lat), float(node.location.lon))))
+        for pair_a, pair_b in zip(coords, coords[1:]):
+            if pair_a is None or pair_b is None:
+                continue
+            start, startpos = pair_a
+            end, endpos = pair_b
             if start == end:
                 continue
             self.nodes[start] = startpos
@@ -100,9 +153,27 @@ class Reader(osmium.SimpleHandler):
         self.ways += 1
 
 
-def make_graph(input_path, output_path):
-    reader = Reader()
-    reader.apply_file(str(input_path), locations=True, idx="flex_mem")
+def make_graph(input_path, output_path, bbox=None):
+    if not input_path.is_file():
+        raise SystemExit(f"OSM file not found: {input_path}")
+    if bbox is None:
+        # Backward-compatible mode for already prepared, reference-complete PBF.
+        reader = Reader()
+        reader.apply_file(str(input_path), locations=True, idx="flex_mem")
+    else:
+        print("[1/2] Scanning OSM nodes in a padded bounding box ...", flush=True)
+        locations = NodeCollector(bbox)
+        locations.apply_file(str(input_path))
+        print(f"[1/2] Done: {locations.scanned:,} nodes scanned, "
+              f"{len(locations.nodes):,} retained in region.", flush=True)
+        if len(locations.nodes) < 2:
+            raise SystemExit("No map nodes found in the bounding box. Check ROADFUN_BBOX.")
+        print("[2/2] Reading drivable roads and constructing edges ...", flush=True)
+        reader = Reader(locations.nodes)
+        reader.apply_file(str(input_path))
+        print(f"[2/2] Done: {reader.scanned:,} ways scanned, "
+              f"{reader.ways:,} matching drivable ways.", flush=True)
+        locations.nodes.clear()
     if not reader.edges:
         raise SystemExit("No drivable ways in OSM extract.")
     # Drop tiny isolated components (undirected, conservative) to prevent
@@ -180,5 +251,18 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path, help="small region .osm.pbf extract")
     parser.add_argument("output", type=Path)
+    parser.add_argument("--bbox", metavar="W,S,E,N",
+                        help="Stream directly from large PBF: bounding box as west,south,east,north")
     args = parser.parse_args()
-    make_graph(args.source, args.output)
+    bbox = None
+    if args.bbox is not None:
+        try:
+            values = [float(v.strip()) for v in args.bbox.split(",")]
+        except ValueError as exc:
+            parser.error(f"Invalid --bbox: {exc}")
+        if (len(values) != 4 or any(not math.isfinite(v) for v in values) or
+                not (-180 <= values[0] < values[2] <= 180) or
+                not (-90 <= values[1] < values[3] <= 90)):
+            parser.error("--bbox must be west,south,east,north; valid coordinates required")
+        bbox = values
+    make_graph(args.source, args.output, bbox=bbox)
