@@ -24,7 +24,12 @@ jobs:
           node --check src/RoadFun.Api/wwwroot/local-router-worker.js
           node --check src/RoadFun.Api/wwwroot/sw.js
           node --test tests/geometry3d.test.cjs tests/terrain-map.test.cjs tests/local-routing.test.cjs tests/3d-assets.test.cjs
-          python3 -m py_compile scripts/create-browser-graph.py
+          python3 -m py_compile scripts/create-browser-graph.py tests/browser-map-pipeline.py
+      - name: Validate streaming OSM graph import
+        run: |
+          python3 -m venv .venv-map
+          .venv-map/bin/pip install --disable-pip-version-check osmium
+          .venv-map/bin/python tests/browser-map-pipeline.py
       - name: Restore and build
         run: dotnet build src/RoadFun.Api/RoadFun.Api.csproj -c Release
       - name: API smoke test
