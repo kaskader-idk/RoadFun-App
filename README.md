@@ -53,14 +53,39 @@ Das Docker-Volume `roadfun-app_roadfun_data` sowie die lokale `.env` bleiben dab
 
 ```bash
 apt update
-apt install -y osmium-tool python3-venv python3-pip curl
+apt install -y python3-venv python3-pip curl
 cd ~/RoadFun-App
 bash scripts/build-browser-map.sh
 docker compose up -d --build
 docker compose ps
 ```
 
-Das Skript lädt ggf. `austria-latest.osm.pbf` von Geofabrik herunter, schneidet **nur die eingestellte Region** aus und erstellt `browser-map-data/region.json`. Für das Preprocessing nutzt es Python/PyOsmium. Die Datei wird als Read-only-Volume nach `/app/wwwroot/routing-data` eingebunden und beim Routenplanen vom Gerät heruntergeladen. Zum bloßen Aktualisieren der Straßenkarte genügt es, das Skript erneut auszuführen und die RoadFun-Seite neu zu öffnen; danach ggf. PWA-Daten/Cache aktualisieren.
+Das Skript lädt ggf. `austria-latest.osm.pbf` von Geofabrik herunter und liest die OSM-Datei **in zwei sequentiellen Durchläufen**. Es merkt sich dabei nur Knoten des gewünschten Kartenausschnitts (+kleiner Rand) und schreibt befahrbare Straßen direkt nach `browser-map-data/region.json`. Es verwendet **kein `osmium extract --strategy=complete_ways` mehr**, weil dessen großer Node-ID-Bitmap-Speicherbedarf in kleinen Proxmox-LXC problematisch ist. Die Fortschrittsanzeige meldet die gezählten OSM-Knoten und Wege, nicht eine irreführende 0-%-Anzeige. Für das Preprocessing benötigt es Python/PyOsmium in einer lokalen virtuellen Umgebung. Die Datei wird als Read-only-Volume nach `/app/wwwroot/routing-data` eingebunden und beim Routenplanen vom Gerät heruntergeladen. Zum bloßen Aktualisieren der Straßenkarte genügt es, das Skript erneut auszuführen und die RoadFun-Seite neu zu öffnen; danach ggf. PWA-Daten/Cache aktualisieren.
+
+### Wenn die ältere Extraktion stundenlang bei 0 % blieb
+
+Den alten Vorgang mit `Strg+C` abbrechen und das Repository aktualisieren. Die bereits heruntergeladene Austria-PBF-Datei bleibt erhalten. Das neue Skript führt die zwei Durchläufe direkt mit PyOsmium durch (ohne temporäre Regionsextraktion), was deutlich weniger RAM benötigt.
+
+```bash
+cd ~/RoadFun-App
+git pull --ff-only
+bash scripts/build-browser-map.sh
+```
+
+Während der Verarbeitung werden Meldungen wie `[1/2] OSM-Knoten gelesen` und `[2/2] OSM-Wege geprüft` angezeigt. Wenn die Zähler nicht weiterlaufen, bitte RAM/Swap und I/O-Limits des LXC prüfen:
+
+```bash
+free -h
+df -h .
+ps -eo pid,stat,%cpu,%mem,rss,etime,cmd | grep -E 'create-browser-graph|osmium' | grep -v grep
+```
+
+Die JSON-Datei wird erst nach erfolgreicher Verarbeitung atomar ersetzt. **Docker muss nicht neu gebaut werden**, sofern die aktuelle Compose-Version das Verzeichnis `browser-map-data` als Read-only-Volume einbindet. Die fertige Datei kann so überprüft werden:
+
+```bash
+ls -lh browser-map-data/region.json
+docker exec roadfun ls -lh /app/wwwroot/routing-data/region.json
+```
 
 ### Eigene Region vorbereiten
 
