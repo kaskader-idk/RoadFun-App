@@ -135,6 +135,7 @@ class Reader(osmium.SimpleHandler):
                     coords.append(None)
                 else:
                     coords.append((ident, (float(node.location.lat), float(node.location.lon))))
+        included = False
         for pair_a, pair_b in zip(coords, coords[1:]):
             if pair_a is None or pair_b is None:
                 continue
@@ -142,6 +143,7 @@ class Reader(osmium.SimpleHandler):
             end, endpos = pair_b
             if start == end:
                 continue
+            included = True
             self.nodes[start] = startpos
             self.nodes[end] = endpos
             dist = meters(startpos, endpos)
@@ -150,7 +152,8 @@ class Reader(osmium.SimpleHandler):
                 self.edges.append((start, end, dist, seconds, category))
             if reverse:
                 self.edges.append((end, start, dist, seconds, category))
-        self.ways += 1
+        if included:
+            self.ways += 1
 
 
 def make_graph(input_path, output_path, bbox=None):
